@@ -1,0 +1,2235 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SUPER URNA LIVE: Lula 13 vs Bolsonaro 22 vs Renan 14</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Inter:wght@500;700;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #07080d;
+            color: #ffffff;
+            overflow-x: hidden;
+            user-select: none;
+            margin: 0;
+            padding: 0;
+        }
+        .font-arcade {
+            font-family: 'Black Ops One', cursive;
+            letter-spacing: 0.5px;
+        }
+        /* Proporção exata 9:16 para captura no Celular / TikTok Live Studio / OBS */
+        .stream-container {
+            width: 414px;
+            height: 736px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.95), 0 0 2px rgba(255, 255, 255, 0.2);
+            border-radius: 16px;
+            background: #0d1117;
+            flex-shrink: 0;
+            transform-origin: center center;
+        }
+        /* Quando aberto com ?mode=obs no Celular ou TikTok Live Studio */
+        body.obs-clean-mode {
+            background-color: #000000 !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden !important;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        body.obs-clean-mode .stream-container {
+            border-radius: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { transform: scale(1); filter: brightness(1); }
+            50% { transform: scale(1.03); filter: brightness(1.22); }
+        }
+        .animate-pulse-fast {
+            animation: pulseGlow 1s infinite ease-in-out;
+        }
+        @keyframes floatCrown {
+            0%, 100% { transform: translateY(0px) rotate(-6deg); }
+            50% { transform: translateY(-3px) rotate(6deg); }
+        }
+        .crown-anim {
+            animation: floatCrown 1.6s infinite ease-in-out;
+        }
+        @keyframes tickerSlide {
+            0% { transform: translateX(0%); }
+            100% { transform: translateX(-50%); }
+        }
+        .ticker-track {
+            display: flex;
+            width: 200%;
+            animation: tickerSlide 18s linear infinite;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+    </style>
+</head>
+<body id="mainBody" class="min-h-screen flex flex-col lg:flex-row items-center justify-center p-2 lg:p-6 gap-6">
+
+    <!-- TOAST DE NOTIFICAÇÃO -->
+    <div id="toastNotification" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 hidden bg-emerald-600 border border-emerald-400 text-white font-bold text-xs px-5 py-3 rounded-xl shadow-2xl items-center gap-2 transition-all">
+        <span>✅</span>
+        <span id="toastMessage">Link copiado com sucesso!</span>
+    </div>
+
+    <!-- BOTÃO DISCRETO NO CELULAR (?mode=obs) PARA ABRIR MENU RÁPIDO NA TELA -->
+    <button id="mobileQuickMenuBtn" onclick="toggleMobileDrawer()" title="Menu Rápido (Conectar Live / Simulador)" class="fixed top-2.5 right-2.5 z-50 bg-black/40 hover:bg-black/80 text-white/50 hover:text-white font-bold w-8 h-8 rounded-full flex items-center justify-center text-xs border border-white/15 backdrop-blur-sm transition">
+        ⚙️
+    </button>
+
+    <!-- GAVETA DE CONTROLE RÁPIDO DIRETO NO CELULAR (FUNCIONA MESMO EM ?mode=obs) -->
+    <div id="mobileDrawerModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-gray-900 border-2 border-indigo-500/60 rounded-2xl w-full max-w-sm p-4 shadow-2xl space-y-3 text-white">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-2">
+                <div class="text-xs font-black uppercase text-indigo-300 flex items-center gap-1.5">
+                    <span>📱 Controle Rápido no Celular</span>
+                </div>
+                <button onclick="toggleMobileDrawer()" class="bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold px-2.5 py-1 rounded-lg">✕ Fechar</button>
+            </div>
+
+            <!-- Conectar Live direto pelo Celular -->
+            <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800 space-y-2">
+                <label class="text-[10px] font-black uppercase text-emerald-400 block">🔌 Conectar Live do TikTok (@usuario):</label>
+                <div class="flex gap-1.5">
+                    <input id="mobileTiktokInput" type="text" placeholder="@seu_usuario" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                    <button onclick="connectToTikTokFromMobile()" class="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3 py-1.5 rounded-lg">
+                        Conectar
+                    </button>
+                </div>
+                <div id="mobileConnStatus" class="text-[10px] text-amber-300 font-bold">⚡ Status: Aguardando comando...</div>
+                <!-- Log em tempo real no celular para ter certeza que eventos estão chegando -->
+                <div id="mobileLiveLogBox" class="bg-black/90 border border-gray-800 rounded p-1.5 text-[9px] font-mono text-gray-300 h-14 overflow-y-auto">
+                    <div>📡 Aguardando conexão com o TikTok...</div>
+                </div>
+            </div>
+
+            <!-- BOTÃO DE TELA CHEIA REAL (SOME COM A BARRA DE LINK DO NAVEGADOR NO CELULAR!) -->
+            <button onclick="enterTrueFullscreen()" class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-black text-xs py-2.5 px-3 rounded-xl shadow-lg uppercase flex items-center justify-center gap-2 border border-indigo-400/50">
+                <span>📱 ATIVAR TELA CHEIA (SUMIR BARRA DE LINK)</span>
+            </button>
+
+            <!-- Ligar/Desligar Simulador e Som no Celular -->
+            <div class="grid grid-cols-2 gap-2">
+                <button id="mobileBotBtn" onclick="toggleChaosBot()" class="bg-amber-500 hover:bg-amber-400 text-black font-black text-[11px] py-2 px-2 rounded-xl shadow uppercase">
+                    🔥 Simulador: ON/OFF
+                </button>
+                <button onclick="playUrnaConfirmSound(); speakAnnouncement('Som da urna ativado no celular!');" class="bg-emerald-700 hover:bg-emerald-600 text-white font-black text-[11px] py-2 px-2 rounded-xl shadow uppercase">
+                    🔊 Ativar Som Urna
+                </button>
+            </div>
+
+            <!-- Disparos Rápidos de Teste no Celular -->
+            <div class="bg-gray-950 p-2.5 rounded-xl border border-gray-800 space-y-1.5">
+                <div class="text-[10px] font-bold text-gray-400 uppercase">Testar Presentes Específicos:</div>
+                <div class="grid grid-cols-3 gap-1.5">
+                    <button onclick="broadcastAndRun('vote', { cand: 0, tier: 'rose', giftName: '🌹 Rosa', user: createSimulatedUser(0) })" class="bg-red-900/80 border border-red-500/40 text-white text-[10px] font-bold py-1.5 rounded-lg">🌹 Rosa (13)</button>
+                    <button onclick="broadcastAndRun('vote', { cand: 1, tier: 'rose', giftName: '☕ Café', user: createSimulatedUser(1) })" class="bg-green-900/80 border border-green-500/40 text-white text-[10px] font-bold py-1.5 rounded-lg">☕ Café (22)</button>
+                    <button onclick="broadcastAndRun('vote', { cand: 2, tier: 'rose', giftName: '⚡ Raio', user: createSimulatedUser(2) })" class="bg-amber-900/80 border border-amber-500/40 text-white text-[10px] font-bold py-1.5 rounded-lg">⚡ Raio (14)</button>
+                </div>
+                <div class="grid grid-cols-3 gap-1.5 pt-1">
+                    <button onclick="broadcastAndRun('vote', { cand: 0, tier: 'steal', giftName: '🍺 Cerveja', user: createSimulatedUser(0) })" class="bg-purple-900/80 border border-purple-400/40 text-white text-[10px] font-bold py-1.5 rounded-lg">🍺 Virar 13</button>
+                    <button onclick="broadcastAndRun('vote', { cand: 1, tier: 'steal', giftName: '🔫 Arma', user: createSimulatedUser(1) })" class="bg-purple-900/80 border border-purple-400/40 text-white text-[10px] font-bold py-1.5 rounded-lg">🔫 Virar 22</button>
+                    <button onclick="broadcastAndRun('vote', { cand: 2, tier: 'steal', giftName: '🎩 Boné', user: createSimulatedUser(2) })" class="bg-purple-900/80 border border-purple-400/40 text-white text-[10px] font-bold py-1.5 rounded-lg">🎩 Virar 14</button>
+                </div>
+                <div class="grid grid-cols-2 gap-1.5 pt-1">
+                    <button onclick="broadcastAndRun('like', { count: 150, user: createSimulatedUser(0) })" class="bg-pink-900/80 border border-pink-400/40 text-white text-[10px] font-bold py-1.5 rounded-lg">❤️ +150 Curtidas</button>
+                    <button onclick="broadcastAndRun('follow', { cand: Math.floor(Math.random()*3), user: createSimulatedUser(1) })" class="bg-cyan-900/80 border border-cyan-400/40 text-white text-[10px] font-bold py-1.5 rounded-lg">➕ Novo Seguidor</button>
+                </div>
+            </div>
+
+            <div class="flex justify-between items-center pt-1">
+                <button onclick="broadcastAndRun('reset', {})" class="bg-gray-800 hover:bg-gray-700 text-gray-200 text-[10px] font-bold px-3 py-1.5 rounded-lg">🔄 Zerar Urna</button>
+                <button onclick="toggleObsMode(); toggleMobileDrawer();" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg">🖥️ Abrir Painel Completo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================
+         TELA DA LIVE (9:16 VERTICAL - SUPER URNA ELEITORAL)
+         ========================================================== -->
+    <div id="streamFrame" class="stream-container border border-gray-800 flex flex-col justify-between">
+        
+        <!-- CANVAS 2D (Fundo, Urna Eletrônica, 3 Chibis nos Pódios, Cédulas e Fotos Voando) -->
+        <canvas id="gameCanvas" width="414" height="736" class="absolute inset-0 z-0"></canvas>
+
+        <!-- FEED FLUTUANTE DE ÚLTIMOS ELEITORES COM FOTO REAL (CANTO ESQUERDO DA TELA) -->
+        <div id="liveVoterFeed" class="pointer-events-none absolute left-2 top-[355px] z-20 flex flex-col gap-1 w-36 overflow-hidden"></div>
+
+        <!-- TOP HUD: APURAÇÃO TSE, BARRAS DOS 3 CANDIDATOS E MVPs -->
+        <div class="relative z-10 p-1.5 pt-2 bg-gradient-to-b from-black/95 via-black/75 to-transparent">
+            
+            <!-- CABEÇALHO DE APURAÇÃO + INDICADOR VISÍVEL DE LIVE CONECTADA -->
+            <div class="flex items-center justify-between mb-1">
+                <div id="hudLiveBadge" class="flex items-center gap-1.5 bg-red-950/90 border border-red-500/40 px-2 py-0.5 rounded transition-all">
+                    <span id="hudLiveDot" class="inline-block w-2 h-2 bg-red-500 rounded-full animate-ping"></span>
+                    <span id="hudLiveText" class="text-[9px] font-black uppercase tracking-wider text-red-200">OFFLINE • SIMULADOR</span>
+                </div>
+                <div class="font-arcade text-base text-yellow-400 drop-shadow-[0_2px_4px_rgba(0,0,0,1)] bg-black/80 px-2.5 py-0.5 rounded-lg border border-yellow-500/40" id="timerDisplay">
+                    05:00
+                </div>
+                <div class="text-[9px] font-black uppercase tracking-wider text-emerald-300 bg-black/80 px-2 py-0.5 rounded border border-emerald-500/30">
+                    TOTAL: <span id="totalVotesHud">300</span> VOTOS
+                </div>
+            </div>
+
+            <!-- PLACAR DE BARRAS DOS 3 CANDIDATOS (LULA 13 | BOLSONARO 22 | RENAN 14) -->
+            <div class="space-y-1 bg-gray-950/90 p-1.5 rounded-xl border border-white/15 shadow-xl backdrop-blur-sm">
+                
+                <!-- 13 LULA -->
+                <div class="relative">
+                    <div class="flex justify-between items-center text-[10px] font-black mb-0.5">
+                        <span class="text-red-400 flex items-center gap-1">⭐ 13 LULA <span class="bg-red-600 text-white text-[8px] px-1 rounded font-black">🌹 Rosa | 🍺 Cerv. | 🚀 Fog.</span></span>
+                        <span id="scoreText0" class="font-arcade text-[11px] text-white">100 (33.3%)</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-gray-900 rounded-full overflow-hidden border border-red-500/40">
+                        <div id="barCand0" class="h-full bg-gradient-to-r from-red-700 via-red-500 to-rose-400 transition-all duration-200" style="width: 33.3%;"></div>
+                    </div>
+                </div>
+
+                <!-- 22 BOLSONARO -->
+                <div class="relative">
+                    <div class="flex justify-between items-center text-[10px] font-black mb-0.5">
+                        <span class="text-green-400 flex items-center gap-1">😎 22 BOLSONARO <span class="bg-green-600 text-white text-[8px] px-1 rounded font-black">☕ Café | 🔫 Arma | 🌌 Galáxia</span></span>
+                        <span id="scoreText1" class="font-arcade text-[11px] text-white">100 (33.3%)</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-gray-900 rounded-full overflow-hidden border border-green-500/40">
+                        <div id="barCand1" class="h-full bg-gradient-to-r from-green-700 via-green-500 to-yellow-400 transition-all duration-200" style="width: 33.3%;"></div>
+                    </div>
+                </div>
+
+                <!-- 14 RENAN SANTOS (MISSÃO) -->
+                <div class="relative">
+                    <div class="flex justify-between items-center text-[10px] font-black mb-0.5">
+                        <span class="text-amber-400 flex items-center gap-1">🐆 14 RENAN <span class="bg-amber-500 text-black text-[8px] px-1 rounded font-black">⚡ Raio | 🎩 Boné | 🏆 Troféu</span></span>
+                        <span id="scoreText2" class="font-arcade text-[11px] text-white">100 (33.4%)</span>
+                    </div>
+                    <div class="w-full h-2.5 bg-gray-900 rounded-full overflow-hidden border border-amber-400/50">
+                        <div id="barCand2" class="h-full bg-gradient-to-r from-neutral-900 via-amber-500 to-yellow-300 transition-all duration-200" style="width: 33.4%;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BARRA DE META DE CURTIDAS (MODO FÚRIA VOTOS 2X) + ÚLTIMO SEGUIDOR -->
+            <div class="mt-1 bg-gray-950/90 border border-pink-500/40 rounded-lg p-1 flex items-center justify-between gap-1.5 shadow">
+                <div class="flex-1">
+                    <div class="flex justify-between items-center text-[8px] font-black uppercase mb-0.5">
+                        <span id="likeFuryLabel" class="text-pink-400 flex items-center gap-1">❤️ META DE CURTIDAS (VOTOS 2X)</span>
+                        <span id="likeCounterHud" class="text-white font-mono">0 / 1.000</span>
+                    </div>
+                    <div class="w-full h-2 bg-gray-900 rounded-full overflow-hidden border border-pink-500/40">
+                        <div id="likeProgressBar" class="h-full bg-gradient-to-r from-pink-600 via-rose-400 to-yellow-300 transition-all duration-200" style="width: 0%;"></div>
+                    </div>
+                </div>
+                <!-- Mini Card do Último Seguidor -->
+                <div id="followerMiniBadge" class="shrink-0 bg-cyan-950/90 border border-cyan-400/50 rounded-md px-1.5 py-0.5 flex items-center gap-1 max-w-[138px]">
+                    <img id="lastFollowerAvatar" src="https://placehold.co/32x32/083344/22d3ee?text=+" class="w-4 h-4 rounded-full border border-cyan-300 object-cover shrink-0" alt="Seguidor">
+                    <div class="leading-none overflow-hidden">
+                        <div class="text-[7px] text-cyan-300 font-black uppercase">➕ NOVO SEGUIDOR (+5)</div>
+                        <div id="lastFollowerName" class="text-[8px] font-bold text-white truncate">Siga p/ +5 votos!</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FINANCIADORES DE CAMPANHA (MVPs DE CADA CANDIDATO) -->
+            <div class="grid grid-cols-3 gap-1.5 mt-1">
+                <!-- MVP Lula -->
+                <div class="bg-black/80 border border-red-500/30 rounded-lg p-1 flex items-center gap-1.5">
+                    <div class="relative shrink-0">
+                        <span class="crown-anim absolute -top-2 -left-1 text-[10px]">👑</span>
+                        <img id="mvpAvatar0" src="https://placehold.co/40x40/7f1d1d/ffffff?text=13" class="w-5 h-5 rounded-full border border-red-400 object-cover" alt="MVP 13">
+                    </div>
+                    <div class="overflow-hidden leading-tight">
+                        <div class="text-[7px] text-red-400 font-black uppercase">Rei do 13</div>
+                        <div id="mvpName0" class="text-[8px] font-bold text-white truncate">@Ninguém</div>
+                    </div>
+                </div>
+
+                <!-- MVP Bolsonaro -->
+                <div class="bg-black/80 border border-green-500/30 rounded-lg p-1 flex items-center gap-1.5">
+                    <div class="relative shrink-0">
+                        <span class="crown-anim absolute -top-2 -left-1 text-[10px]">👑</span>
+                        <img id="mvpAvatar1" src="https://placehold.co/40x40/14532d/ffffff?text=22" class="w-5 h-5 rounded-full border border-green-400 object-cover" alt="MVP 22">
+                    </div>
+                    <div class="overflow-hidden leading-tight">
+                        <div class="text-[7px] text-green-400 font-black uppercase">Rei do 22</div>
+                        <div id="mvpName1" class="text-[8px] font-bold text-white truncate">@Ninguém</div>
+                    </div>
+                </div>
+
+                <!-- MVP Renan 14 -->
+                <div class="bg-black/80 border border-amber-500/30 rounded-lg p-1 flex items-center gap-1.5">
+                    <div class="relative shrink-0">
+                        <span class="crown-anim absolute -top-2 -left-1 text-[10px]">👑</span>
+                        <img id="mvpAvatar2" src="https://placehold.co/40x40/78350f/fde047?text=14" class="w-5 h-5 rounded-full border border-amber-400 object-cover" alt="MVP 14">
+                    </div>
+                    <div class="overflow-hidden leading-tight">
+                        <div class="text-[7px] text-amber-400 font-black uppercase">Rei do 14</div>
+                        <div id="mvpName2" class="text-[8px] font-bold text-white truncate">@Ninguém</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ALERTA CENTRAL DE VIRADA DE VOTOS / TAPETÃO SUPREMO -->
+        <div id="ultimateBanner" class="pointer-events-none relative z-20 hidden flex-col items-center justify-center mx-3 my-auto bg-black/95 border-2 border-yellow-400 rounded-2xl p-3.5 shadow-[0_0_50px_rgba(250,204,21,0.85)] text-center transform scale-95 transition-all">
+            <div class="text-[11px] font-black uppercase tracking-widest text-yellow-300 mb-1" id="ultTypeLabel">🚨 PLANTÃO TSE: VIRADA DE VOTOS! 🚨</div>
+            <img id="ultDonorAvatar" src="https://placehold.co/80x80/eab308/000000?text=VIP" class="w-14 h-14 rounded-full border-4 border-yellow-400 shadow-lg mb-1.5 object-cover" alt="Doador">
+            <div id="ultDonorName" class="font-arcade text-base text-white">@ReiDaUrna</div>
+            <div id="ultMoveName" class="text-xs font-extrabold text-emerald-400 uppercase mt-0.5">ROUBOU 150 VOTOS DOS RIVAIS!</div>
+        </div>
+
+        <!-- OVERLAY DE FIM DO TURNO ELEITORAL -->
+        <div id="votingOverlay" class="hidden absolute inset-0 z-30 bg-black/92 backdrop-blur-md flex-col items-center justify-center p-5 text-center">
+            <div class="text-xs font-black uppercase tracking-widest text-yellow-400">URNAS ENCERRADAS! NOVO PRESIDENTE DA LIVE:</div>
+            <div id="winnerAnnouncement" class="font-arcade text-3xl text-white mt-2 mb-4 drop-shadow-[0_0_15px_rgba(250,204,21,0.8)]">13 LULA ELEITO!</div>
+            <div class="text-xs text-gray-300 mb-4">Novo turno eleitoral começando automaticamente em:</div>
+            <div id="voteTimerText" class="font-arcade text-5xl text-yellow-400 mb-6">10s</div>
+            <button onclick="resetElection()" class="bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs px-6 py-3 rounded-xl uppercase shadow-lg">
+                🔄 Abrir Novo Turno Agora
+            </button>
+        </div>
+
+        <!-- =========================================================================
+             RODAPÉ DE INSTRUÇÕES CLARAS POR CANDIDATO (PARA NINGUÉM VOTAR ERRADO!)
+             ========================================================================= -->
+        <div class="relative z-10 bg-black/95 border-t-2 border-yellow-500/70 p-1.5 backdrop-blur-md">
+            
+            <!-- Título explicativo claro -->
+            <div class="text-[8px] font-black text-center uppercase tracking-wider text-yellow-300 mb-1">
+                👇 TABELA OFICIAL DE PRESENTES (OU DIGITE 13, 22 OU 14 ANTES DE DOAR!) 👇
+            </div>
+
+            <!-- 3 Colunas Visuais: 1 Coluna embaixo de cada Candidato! -->
+            <div class="grid grid-cols-3 gap-1 mb-1">
+                
+                <!-- Cardápio 13 LULA -->
+                <div class="bg-red-950/80 border border-red-500/60 rounded-lg p-1 text-[8px] leading-tight">
+                    <div class="font-black text-red-300 text-center border-b border-red-500/30 pb-0.5 mb-0.5 uppercase">
+                        ⭐ VOTO 13 LULA
+                    </div>
+                    <div class="flex justify-between text-white"><span>💬 Chat <b>"13"</b></span><span class="text-red-300 font-bold">+1</span></div>
+                    <div class="flex justify-between text-white"><span>🌹 <b>Rosa</b></span><span class="text-pink-300 font-bold">+25</span></div>
+                    <div class="flex justify-between text-white"><span>🍺 <b>Cerveja/Cor.</b></span><span class="text-purple-300 font-bold">Rouba 150</span></div>
+                    <div class="flex justify-between text-yellow-300 font-black"><span>🚀 <b>Foguete/Leão</b></span><span>+3000!</span></div>
+                </div>
+
+                <!-- Cardápio 22 BOLSONARO -->
+                <div class="bg-green-950/80 border border-green-500/60 rounded-lg p-1 text-[8px] leading-tight">
+                    <div class="font-black text-green-300 text-center border-b border-green-500/30 pb-0.5 mb-0.5 uppercase">
+                        😎 VOTO 22 BOLSO
+                    </div>
+                    <div class="flex justify-between text-white"><span>💬 Chat <b>"22"</b></span><span class="text-green-300 font-bold">+1</span></div>
+                    <div class="flex justify-between text-white"><span>☕ <b>Café/Casq.</b></span><span class="text-pink-300 font-bold">+25</span></div>
+                    <div class="flex justify-between text-white"><span>🔫 <b>Arma/Óculos</b></span><span class="text-purple-300 font-bold">Rouba 150</span></div>
+                    <div class="flex justify-between text-yellow-300 font-black"><span>🌌 <b>Galáxia/Águia</b></span><span>+3000!</span></div>
+                </div>
+
+                <!-- Cardápio 14 RENAN -->
+                <div class="bg-amber-950/80 border border-amber-400/60 rounded-lg p-1 text-[8px] leading-tight">
+                    <div class="font-black text-amber-300 text-center border-b border-amber-500/30 pb-0.5 mb-0.5 uppercase">
+                        🐆 VOTO 14 RENAN
+                    </div>
+                    <div class="flex justify-between text-white"><span>💬 Chat <b>"14"</b></span><span class="text-amber-300 font-bold">+1</span></div>
+                    <div class="flex justify-between text-white"><span>⚡ <b>Raio/TikTok</b></span><span class="text-pink-300 font-bold">+25</span></div>
+                    <div class="flex justify-between text-white"><span>🎩 <b>Boné/Chapéu</b></span><span class="text-purple-300 font-bold">Rouba 150</span></div>
+                    <div class="flex justify-between text-yellow-300 font-black"><span>🏆 <b>Troféu/Univ.</b></span><span>+3000!</span></div>
+                </div>
+            </div>
+
+            <!-- Letreiro Rolante Explicativo -->
+            <div class="overflow-hidden whitespace-nowrap bg-yellow-400 text-black font-black text-[9px] uppercase py-0.5 rounded px-1">
+                <div class="ticker-track">
+                    <span class="mx-3">➕ SIGA A LIVE PARA DAR +5 VOTOS BÔNUS IMEDIATOS! ❤️ DEDO NA TELA: A CADA 1.000 CURTIDAS ATIVA O MODO FÚRIA VOTOS 2X!</span>
+                    <span class="mx-3">🔒 COMO NÃO ERRAR O VOTO: ENVIE O PRESENTE DO SEU CANDIDATO OU DIGITE 13, 22 OU 14 NO CHAT ANTES DE DOAR!</span>
+                    <span class="mx-3">🌹 ROSA = 13 LULA | ☕ CAFÉ = 22 BOLSONARO | ⚡ RAIO/TIKTOK = 14 RENAN!</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==========================================================
+         PAINEL DE CONTROLE INTUITIVO (MESMO PADRÃO FÁCIL)
+         ========================================================== -->
+    <div id="controlPanel" class="w-full max-w-2xl bg-gray-900 border border-gray-800 rounded-2xl p-5 shadow-2xl flex flex-col gap-4">
+        
+        <!-- Cabeçalho do Painel -->
+        <div class="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 pb-3">
+            <div>
+                <h1 class="text-lg font-black text-white flex items-center gap-2">
+                    🗳️ Central da Super Urna
+                    <span id="connectionStatusBadge" class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                        ⚡ Simulador Ativo
+                    </span>
+                </h1>
+                <p class="text-xs text-gray-400">Cada candidato agora tem seus presentes exclusivos + trava por comentário!</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button id="soundToggleBtn" onclick="toggleAudio()" class="bg-emerald-900/60 hover:bg-emerald-800 text-emerald-200 text-xs font-bold px-2.5 py-2 rounded-lg border border-emerald-500/40">
+                    🔊 Urna: ON
+                </button>
+                <button id="voiceToggleBtn" onclick="toggleVoice()" class="bg-indigo-900/60 hover:bg-indigo-800 text-indigo-200 text-xs font-bold px-2.5 py-2 rounded-lg border border-indigo-500/40">
+                    🗣️ Locutor: ON
+                </button>
+                <button onclick="openSetupModal()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black px-3 py-2 rounded-lg shadow flex items-center gap-1">
+                    🔌 Conectar TikTok / server.js
+                </button>
+            </div>
+        </div>
+
+        <!-- CAIXA RÁPIDA: LINK LIMPO PARA CELULAR / TIKTOK LIVE STUDIO -->
+        <div class="bg-indigo-950/60 border-2 border-indigo-500/50 rounded-xl p-3 flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+                <span class="text-xs font-black uppercase text-indigo-300">
+                    📱 Link de Tela Limpa (Para abrir no Celular ou TikTok Live Studio)
+                </span>
+                <span class="text-[10px] font-bold text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-500/30">
+                    Proporção 9:16
+                </span>
+            </div>
+            <div class="flex items-center gap-2">
+                <input id="obsUrlInput" type="text" readonly class="w-full bg-gray-950 border border-indigo-500/40 rounded-lg px-3 py-2 text-xs text-indigo-200 font-mono select-all focus:outline-none" value="Carregando...">
+                <button onclick="copyObsLink()" class="shrink-0 bg-indigo-500 hover:bg-indigo-400 text-white font-black text-xs px-4 py-2 rounded-lg shadow-lg uppercase">
+                    📋 Copiar Link
+                </button>
+                <button onclick="toggleObsMode()" class="shrink-0 bg-gray-800 hover:bg-gray-700 text-gray-200 font-bold text-xs px-3 py-2 rounded-lg border border-gray-700">
+                    👁️ Tela Cheia
+                </button>
+            </div>
+            <div class="flex items-center gap-2 pt-1 border-t border-indigo-500/20 mt-1">
+                <span class="text-[11px] font-bold text-gray-300 shrink-0">Seu @ do TikTok:</span>
+                <input id="tiktokUsernameInput" type="text" placeholder="@seu_usuario_tiktok (ou qualquer live ativa p/ testar)" class="w-full bg-gray-950 border border-gray-700 rounded-lg px-2.5 py-1.5 text-xs text-white focus:border-emerald-500 focus:outline-none">
+                <button id="pcConnectBtn" onclick="connectToTikTokLive()" class="shrink-0 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs px-3 py-1.5 rounded-lg transition">
+                    Conectar Live
+                </button>
+            </div>
+            <!-- MONITOR VISUAL DE CONEXÃO E EVENTOS REAIS DO TIKTOK -->
+            <div class="bg-black/90 border border-gray-800 rounded-lg p-2 mt-1">
+                <div class="flex justify-between items-center text-[10px] font-black uppercase mb-1">
+                    <span id="pcTikTokDetailedStatus" class="text-amber-400">📡 Status TikTok: Nenhuma live conectada ainda</span>
+                    <span class="text-gray-500 font-mono" id="realEventsCounter">0 eventos reais recebidos</span>
+                </div>
+                <div id="pcLiveLogBox" class="text-[10px] font-mono text-gray-300 h-14 overflow-y-auto space-y-0.5 bg-gray-950/80 p-1.5 rounded border border-gray-900">
+                    <div class="text-gray-500">💡 Dica: Você precisa estar AO VIVO no TikTok antes de clicar em "Conectar Live". Para testar agora mesmo sem abrir live, digite o @ de qualquer pessoa que esteja em live no TikTok!</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOT DE SIMULAÇÃO DE LIVE LOTADA -->
+        <div class="bg-gradient-to-r from-amber-500/10 via-red-500/10 to-emerald-500/10 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-4">
+            <div>
+                <div class="text-sm font-black text-amber-300">
+                    🤖 Simulador de Eleição Lotada (Sincronizado PC + Celular)
+                </div>
+                <p class="text-xs text-gray-300">Simula comentários e presentes específicos (Rosa, Café, Arma, Cerveja, Galáxia).</p>
+            </div>
+            <button id="chaosBotBtn" onclick="toggleChaosBot()" class="shrink-0 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-4 py-2.5 rounded-xl shadow-lg uppercase tracking-wider transition">
+                🔥 ATIVAR SIMULADOR
+            </button>
+        </div>
+
+        <!-- 3 COLUNAS DE DISPARO MANUAL COM OS PRESENTES ESPECÍFICOS DE CADA CANDIDATO -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+            
+            <!-- Coluna 13 LULA -->
+            <div class="bg-gray-950/90 border border-red-500/40 rounded-xl p-2.5 space-y-1.5">
+                <div class="text-xs font-black uppercase text-red-400 border-b border-gray-800 pb-1 flex justify-between items-center">
+                    <span>⭐ 13 LULA</span>
+                    <span class="text-[10px] bg-red-600 text-white px-1.5 rounded">PT</span>
+                </div>
+                <button onclick="broadcastAndRun('vote', { cand: 0, tier: 'comment', giftName: '💬 13', user: createSimulatedUser(0) })" class="w-full bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>💬 Chat "13"</span>
+                    <span class="text-gray-400">+1 Voto</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 0, tier: 'rose', giftName: '🌹 Rosa', user: createSimulatedUser(0) })" class="w-full bg-pink-950/70 hover:bg-pink-900 border border-pink-500/40 text-pink-200 text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>🌹 Rosa (1 M)</span>
+                    <span class="text-pink-400">+25 Votos</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 0, tier: 'steal', giftName: '🍺 Cerveja', user: createSimulatedUser(0) })" class="w-full bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 text-purple-200 text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>🍺 Cerveja / Coração</span>
+                    <span class="text-purple-300">Rouba 150!</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 0, tier: 'whale', giftName: '🚀 Foguete/Leão', user: createSimulatedUser(0) })" class="w-full bg-gradient-to-r from-red-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white text-[11px] font-black py-2 px-2.5 rounded-lg flex justify-between shadow">
+                    <span>🚀 FOGUETE / LEÃO</span>
+                    <span>+3000 / -1500</span>
+                </button>
+            </div>
+
+            <!-- Coluna 22 BOLSONARO -->
+            <div class="bg-gray-950/90 border border-green-500/40 rounded-xl p-2.5 space-y-1.5">
+                <div class="text-xs font-black uppercase text-green-400 border-b border-gray-800 pb-1 flex justify-between items-center">
+                    <span>😎 22 BOLSONARO</span>
+                    <span class="text-[10px] bg-green-600 text-white px-1.5 rounded">PL</span>
+                </div>
+                <button onclick="broadcastAndRun('vote', { cand: 1, tier: 'comment', giftName: '💬 22', user: createSimulatedUser(1) })" class="w-full bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>💬 Chat "22"</span>
+                    <span class="text-gray-400">+1 Voto</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 1, tier: 'rose', giftName: '☕ Café', user: createSimulatedUser(1) })" class="w-full bg-pink-950/70 hover:bg-pink-900 border border-pink-500/40 text-pink-200 text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>☕ Café / Casquinha</span>
+                    <span class="text-pink-400">+25 Votos</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 1, tier: 'steal', giftName: '🔫 Arma', user: createSimulatedUser(1) })" class="w-full bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 text-purple-200 text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>🔫 Arma / Óculos</span>
+                    <span class="text-purple-300">Rouba 150!</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 1, tier: 'whale', giftName: '🌌 Galáxia', user: createSimulatedUser(1) })" class="w-full bg-gradient-to-r from-green-600 to-yellow-500 hover:from-green-500 hover:to-yellow-400 text-black text-[11px] font-black py-2 px-2.5 rounded-lg flex justify-between shadow">
+                    <span>🌌 GALÁXIA / ÁGUIA</span>
+                    <span>+3000 / -1500</span>
+                </button>
+            </div>
+
+            <!-- Coluna 14 RENAN SANTOS (MISSÃO) -->
+            <div class="bg-gray-950/90 border border-amber-400/50 rounded-xl p-2.5 space-y-1.5">
+                <div class="text-xs font-black uppercase text-amber-400 border-b border-gray-800 pb-1 flex justify-between items-center">
+                    <span>🐆 14 RENAN</span>
+                    <span class="text-[10px] bg-amber-400 text-black font-black px-1.5 rounded">MISSÃO</span>
+                </div>
+                <button onclick="broadcastAndRun('vote', { cand: 2, tier: 'comment', giftName: '💬 14', user: createSimulatedUser(2) })" class="w-full bg-gray-800 hover:bg-gray-700 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>💬 Chat "14"</span>
+                    <span class="text-gray-400">+1 Voto</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 2, tier: 'rose', giftName: '⚡ Raio', user: createSimulatedUser(2) })" class="w-full bg-pink-950/70 hover:bg-pink-900 border border-pink-500/40 text-pink-200 text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>⚡ Raio / TikTok</span>
+                    <span class="text-pink-400">+25 Votos</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 2, tier: 'steal', giftName: '🎩 Boné', user: createSimulatedUser(2) })" class="w-full bg-purple-950/80 hover:bg-purple-900 border border-purple-500/50 text-purple-200 text-[11px] font-bold py-1.5 px-2.5 rounded-lg flex justify-between">
+                    <span>🎩 Boné / Chapéu</span>
+                    <span class="text-purple-300">Rouba 150!</span>
+                </button>
+                <button onclick="broadcastAndRun('vote', { cand: 2, tier: 'whale', giftName: '🏆 Troféu', user: createSimulatedUser(2) })" class="w-full bg-gradient-to-r from-amber-500 to-yellow-300 hover:from-amber-400 hover:to-yellow-200 text-black text-[11px] font-black py-2 px-2.5 rounded-lg flex justify-between shadow">
+                    <span>🏆 TROFÉU / UNIV.</span>
+                    <span>+3000 / -1500</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- RODAPÉ DO PAINEL: TESTAR SOM DA URNA E ZERAR -->
+        <div class="flex flex-wrap items-center justify-between gap-2 bg-gray-950 p-3 rounded-xl border border-gray-800">
+            <div class="flex flex-wrap items-center gap-1.5">
+                <button onclick="playUrnaConfirmSound()" class="bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-black px-2.5 py-2 rounded-lg shadow">
+                    🔊 "PILILILI"
+                </button>
+                <button onclick="broadcastAndRun('like', { count: 200, user: createSimulatedUser(0) })" class="bg-pink-700 hover:bg-pink-600 text-white text-xs font-black px-2.5 py-2 rounded-lg shadow">
+                    ❤️ +200 Curtidas
+                </button>
+                <button onclick="broadcastAndRun('follow', { cand: Math.floor(Math.random()*3), user: createSimulatedUser(1) })" class="bg-cyan-700 hover:bg-cyan-600 text-white text-xs font-black px-2.5 py-2 rounded-lg shadow">
+                    ➕ Simular Seguidor (+5)
+                </button>
+                <button onclick="broadcastAndRun('reset', {})" class="bg-gray-800 hover:bg-gray-700 text-gray-200 text-xs font-bold px-2.5 py-2 rounded-lg border border-gray-700">
+                    🔄 Zerar Urna
+                </button>
+            </div>
+            <div class="text-right">
+                <div class="text-[10px] uppercase text-gray-400 font-bold">Fundo Partidário da Live (Moedas):</div>
+                <div id="totalCoinsCounter" class="font-arcade text-base text-yellow-400">🪙 0 Moedas (~R$ 0,00)</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- =========================================================================
+         MODAL COM O CÓDIGO DO SERVER.JS ATUALIZADO (COM MAPA DE PRESENTES)
+         ========================================================================= -->
+    <div id="setupModal" class="fixed inset-0 z-50 hidden bg-black/85 backdrop-blur-sm items-center justify-center p-4">
+        <div class="bg-gray-900 border border-gray-700 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b border-gray-800 pb-3">
+                <h2 class="text-base font-black text-white">
+                    🔌 Servidor Node.js (Com Presentes Exclusivos por Candidato!)
+                </h2>
+                <button onclick="closeSetupModal()" class="text-gray-400 hover:text-white text-sm font-bold px-2 py-1 rounded bg-gray-800">✕ Fechar</button>
+            </div>
+
+            <div class="space-y-3 text-xs text-gray-300 leading-relaxed">
+                <div class="bg-indigo-950/50 border border-indigo-500/40 rounded-xl p-3">
+                    <div class="font-black text-indigo-300 uppercase mb-1">🎯 Como o Servidor Decide Para Quem Vai o Presente:</div>
+                    <ul class="list-disc list-inside space-y-1 text-gray-200">
+                        <li><b>Regra 1 (Presente Exclusivo):</b> Se o espectador mandar <b>Rosa/Cerveja/Foguete</b> vai pro <b>13 Lula</b>; se mandar <b>Café/Casquinha/Arma/Óculos/Galáxia</b> vai pro <b>22 Bolsonaro</b>; se mandar <b>Raio/TikTok/Boné/Troféu</b> vai pro <b>14 Renan</b>.</li>
+                        <li><b>Regra 2 (Trava pelo Chat):</b> Se o espectador digitou <code>13</code>, <code>22</code> ou <code>14</code> no chat antes, qualquer outro presente genérico que ele mandar vai 100% garantido para o candidato que ele escolheu!</li>
+                    </ul>
+                </div>
+
+                <div class="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-3">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="font-black text-emerald-300 uppercase">Código do <code>server.js</code> Atualizado:</span>
+                        <div class="flex gap-2">
+                            <button onclick="downloadServerFile()" class="bg-blue-600 hover:bg-blue-500 text-white font-black text-[11px] px-3 py-1.5 rounded-lg shadow">
+                                💾 Baixar server.js
+                            </button>
+                            <button onclick="copyServerCode()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] px-3 py-1.5 rounded-lg shadow">
+                                📋 Copiar Código
+                            </button>
+                        </div>
+                    </div>
+                    <textarea id="serverJsCodeArea" readonly class="w-full h-48 bg-gray-950 border border-gray-800 rounded-lg p-3 font-mono text-[11px] text-gray-200 focus:outline-none"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        /* =========================================================================
+           0. SINCRONIZAÇÃO (MODO CELULAR/OBS, BROADCASTCHANNEL & SOCKET.IO)
+           ========================================================================= */
+        const urlParams = new URLSearchParams(window.location.search);
+        const isObsCleanMode = urlParams.get('mode') === 'obs';
+        const syncChannel = new BroadcastChannel('super_urna_channel');
+        let socket = null;
+
+        function setupObsUrlField() {
+            const baseUrl = window.location.href.split('?')[0];
+            const cleanUrl = `${baseUrl}?mode=obs`;
+            const input = document.getElementById('obsUrlInput');
+            if (input) input.value = cleanUrl;
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            document.getElementById('toastMessage').innerText = msg;
+            toast.classList.remove('hidden');
+            toast.classList.add('flex');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                toast.classList.remove('flex');
+            }, 3200);
+        }
+
+        function copyObsLink() {
+            const input = document.getElementById('obsUrlInput');
+            input.select();
+            document.execCommand('copy');
+            showToast('Link copiado! Abra no navegador do celular ou no TikTok Live Studio.');
+        }
+
+        function adjustObsViewportScale() {
+            const frame = document.getElementById('streamFrame');
+            if (document.body.classList.contains('obs-clean-mode')) {
+                const scaleX = window.innerWidth / 414;
+                const scaleY = window.innerHeight / 736;
+                const scale = Math.min(scaleX, scaleY);
+                frame.style.transform = `scale(${scale})`;
+            } else {
+                frame.style.transform = 'scale(1)';
+            }
+        }
+        window.addEventListener('resize', adjustObsViewportScale);
+
+        function toggleMobileDrawer() {
+            const drawer = document.getElementById('mobileDrawerModal');
+            drawer.classList.toggle('hidden');
+            drawer.classList.toggle('flex');
+        }
+
+        // Ativa Tela Cheia Nativa no Celular (Esconde a barra de endereço do Chrome/Safari)
+        function enterTrueFullscreen() {
+            const docEl = document.documentElement;
+            const requestFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+            if (requestFs) {
+                requestFs.call(docEl).then(() => {
+                    showToast('Tela Cheia ativada! Barra de link ocultada.');
+                    const drawer = document.getElementById('mobileDrawerModal');
+                    if (drawer && !drawer.classList.contains('hidden')) {
+                        toggleMobileDrawer();
+                    }
+                    setTimeout(adjustObsViewportScale, 250);
+                }).catch(() => {
+                    showToast('Toque nos 3 pontinhos do navegador > Adicionar à tela inicial!');
+                });
+            } else {
+                showToast('No iPhone/Safari: Toque em Compartilhar > Adicionar à Tela de Início!');
+            }
+        }
+
+        // Duplo toque em qualquer lugar do jogo também ativa a Tela Cheia e libera o som!
+        document.addEventListener('dblclick', () => {
+            initAudio();
+            enterTrueFullscreen();
+        });
+
+        function broadcastAndRun(type, payload) {
+            syncChannel.postMessage({ type, payload });
+            if (socket && socket.connected) {
+                socket.emit('admin_command', { type, payload });
+            } else {
+                handleRemoteCommand(type, payload);
+            }
+        }
+
+        function handleRemoteCommand(type, payload) {
+            if (type === 'vote') {
+                triggerVoteEvent(payload.cand, payload.tier, payload.user || null, payload.giftName || null);
+            } else if (type === 'like') {
+                triggerLikeEvent(payload.count || 15, payload.user || null);
+            } else if (type === 'follow') {
+                triggerFollowEvent(payload.cand, payload.user || null);
+            } else if (type === 'reset') {
+                resetElection();
+            } else if (type === 'tiktok_status') {
+                updateTikTokVisualStatus(payload);
+            }
+        }
+
+        let realEventsCount = 0;
+        function appendLiveLog(text, colorClass = 'text-emerald-300') {
+            const timeStr = new Date().toLocaleTimeString('pt-BR');
+            const pcLog = document.getElementById('pcLiveLogBox');
+            const mobLog = document.getElementById('mobileLiveLogBox');
+            const lineHtml = `<div class="${colorClass}">[${timeStr}] ${text}</div>`;
+            if (pcLog) {
+                pcLog.insertAdjacentHTML('afterbegin', lineHtml);
+            }
+            if (mobLog) {
+                mobLog.insertAdjacentHTML('afterbegin', lineHtml);
+            }
+        }
+
+        function updateTikTokVisualStatus(payload) {
+            const statusEl = document.getElementById('mobileConnStatus');
+            const pcStatus = document.getElementById('pcTikTokDetailedStatus');
+            const topBadge = document.getElementById('connectionStatusBadge');
+            const hudBadge = document.getElementById('hudLiveBadge');
+            const hudDot = document.getElementById('hudLiveDot');
+            const hudText = document.getElementById('hudLiveText');
+
+            if (statusEl) statusEl.innerText = payload.message;
+            if (pcStatus) pcStatus.innerText = payload.message;
+            appendLiveLog(payload.message, payload.status === 'connected' ? 'text-emerald-400 font-bold' : (payload.status === 'error' ? 'text-red-400 font-bold' : 'text-amber-300'));
+
+            if (payload.status === 'connecting') {
+                if (hudBadge) hudBadge.className = 'flex items-center gap-1.5 bg-amber-950/90 border border-amber-400/60 px-2 py-0.5 rounded transition-all';
+                if (hudDot) hudDot.className = 'inline-block w-2 h-2 bg-amber-400 rounded-full animate-ping';
+                if (hudText) {
+                    hudText.className = 'text-[9px] font-black uppercase tracking-wider text-amber-200';
+                    hudText.innerText = `CONECTANDO @${payload.username}...`;
+                }
+            } else if (payload.status === 'connected') {
+                // Para o simulador automático para mostrar apenas votos reais da live
+                if (chaosInterval) toggleChaosBot();
+
+                if (topBadge) {
+                    topBadge.innerText = `🟢 AO VIVO: @${payload.username}`;
+                    topBadge.className = 'text-[10px] bg-emerald-500/30 text-emerald-200 border border-emerald-400 px-2.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse';
+                }
+                if (hudBadge) hudBadge.className = 'flex items-center gap-1.5 bg-emerald-950/95 border border-emerald-400 px-2 py-0.5 rounded shadow-[0_0_12px_rgba(16,185,129,0.6)] transition-all';
+                if (hudDot) hudDot.className = 'inline-block w-2 h-2 bg-emerald-400 rounded-full animate-ping';
+                if (hudText) {
+                    hudText.className = 'text-[9px] font-black uppercase tracking-wider text-emerald-200';
+                    hudText.innerText = `🟢 LIVE ON: @${payload.username}`;
+                }
+                playUrnaConfirmSound();
+                speakAnnouncement(`Conectado com sucesso na live de ${payload.username}!`);
+            } else if (payload.status === 'error') {
+                if (topBadge) {
+                    topBadge.innerText = `🔴 ERRO NA LIVE`;
+                    topBadge.className = 'text-[10px] bg-red-500/30 text-red-200 border border-red-400 px-2 py-0.5 rounded-full uppercase tracking-wider';
+                }
+                if (hudBadge) hudBadge.className = 'flex items-center gap-1.5 bg-red-950/95 border border-red-500 px-2 py-0.5 rounded transition-all';
+                if (hudDot) hudDot.className = 'inline-block w-2 h-2 bg-red-500 rounded-full';
+                if (hudText) {
+                    hudText.className = 'text-[9px] font-black uppercase tracking-wider text-red-200';
+                    hudText.innerText = `🔴 LIVE OFFLINE`;
+                }
+                playSirenSound();
+            }
+            showToast(payload.message);
+        }
+
+        syncChannel.onmessage = (event) => {
+            if (socket && socket.connected) return;
+            const { type, payload } = event.data;
+            handleRemoteCommand(type, payload);
+        };
+
+        function initSocketConnection() {
+            if (typeof io === 'undefined') return;
+            try {
+                const serverUrl = (window.location.port === '3000')
+                    ? window.location.origin
+                    : 'http://localhost:3000';
+
+                socket = io(serverUrl, {
+                    reconnectionAttempts: 10
+                });
+
+                socket.on('connect', () => {
+                    const badge = document.getElementById('connectionStatusBadge');
+                    if (badge) {
+                        badge.innerText = '🟡 Servidor PC OK (Falta conectar @live)';
+                        badge.className = 'text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full uppercase tracking-wider';
+                    }
+                    const mobStatus = document.getElementById('mobileConnStatus');
+                    if (mobStatus) mobStatus.innerText = '🟡 Servidor PC OK! Digite seu @ acima.';
+                    appendLiveLog('✅ Conectado ao servidor Node.js local (PC + Celular sincronizados).', 'text-cyan-300');
+                });
+
+                socket.on('disconnect', () => {
+                    const badge = document.getElementById('connectionStatusBadge');
+                    if (badge) {
+                        badge.innerText = '🔴 server.js Desligado!';
+                        badge.className = 'text-[10px] bg-red-500/20 text-red-300 border border-red-500/40 px-2 py-0.5 rounded-full uppercase tracking-wider';
+                    }
+                    appendLiveLog('❌ Conexão com server.js perdida! Verifique a janela preta no PC.', 'text-red-400');
+                });
+
+                socket.on('live_event', (data) => {
+                    realEventsCount++;
+                    const counterEl = document.getElementById('realEventsCounter');
+                    if (counterEl) counterEl.innerText = `${realEventsCount} eventos reais recebidos`;
+
+                    if (data.type === 'vote') {
+                        appendLiveLog(`🗳️ REAL: ${data.user.username} -> ${data.giftName || data.tier} (Cand ${CANDIDATES[data.cand].number})`, 'text-emerald-300');
+                        triggerVoteEvent(data.cand, data.tier, data.user, data.giftName || null);
+                    } else if (data.type === 'like') {
+                        appendLiveLog(`❤️ REAL: ${data.user.username} enviou +${data.count} curtidas`, 'text-pink-300');
+                        triggerLikeEvent(data.count || 10, data.user || null);
+                    } else if (data.type === 'follow') {
+                        appendLiveLog(`➕ REAL: ${data.user.username} seguiu a live!`, 'text-cyan-300');
+                        triggerFollowEvent(data.cand, data.user || null);
+                    } else if (data.type === 'chat_raw') {
+                        appendLiveLog(`💬 Chat de ${data.username}: "${data.comment}" (Sem número 13/22/14)`, 'text-gray-400');
+                    }
+                });
+
+                // Recebe o Relógio Mestre do server.js (PC e Celular cravados no mesmo segundo!)
+                socket.on('clock_sync', (clock) => {
+                    const wasEnded = state.isEnded;
+                    state.timeRemaining = clock.timeRemaining;
+                    state.isEnded = clock.isEnded;
+                    state.endCountdown = clock.endCountdown;
+
+                    // Se o celular acabou de abrir a página, puxa o placar atual caso esteja diferente
+                    if (clock.votes && flyingVotes.length === 0) {
+                        const localSum = state.votes[0] + state.votes[1] + state.votes[2];
+                        const serverSum = clock.votes[0] + clock.votes[1] + clock.votes[2];
+                        if (Math.abs(localSum - serverSum) > 50) {
+                            state.votes = [...clock.votes];
+                            updateScoresUI();
+                        }
+                    }
+
+                    renderTimerUI(wasEnded);
+                });
+
+                socket.on('state_snapshot', (snap) => {
+                    if (snap && Array.isArray(snap.votes) && flyingVotes.length === 0) {
+                        state.votes = [...snap.votes];
+                        updateScoresUI();
+                    }
+                });
+
+                socket.on('admin_command', (cmd) => {
+                    handleRemoteCommand(cmd.type, cmd.payload);
+                });
+            } catch (e) {}
+        }
+
+        function connectToTikTokLive() {
+            const username = document.getElementById('tiktokUsernameInput').value.trim().replace('@', '');
+            if (!username) {
+                showToast('Digite o @usuario da sua live primeiro!');
+                return;
+            }
+            if (socket && socket.connected) {
+                updateTikTokVisualStatus({ status: 'connecting', username, message: `⏳ Buscando transmissão ao vivo de @${username}...` });
+                socket.emit('connect_tiktok', { username });
+            } else {
+                openSetupModal();
+                showToast('❌ O server.js não está respondendo! Verifique a janela preta no PC.');
+            }
+        }
+
+        function connectToTikTokFromMobile() {
+            const username = document.getElementById('mobileTiktokInput').value.trim().replace('@', '');
+            if (!username) {
+                showToast('Digite seu @usuario do TikTok!');
+                return;
+            }
+            if (socket && socket.connected) {
+                updateTikTokVisualStatus({ status: 'connecting', username, message: `⏳ Buscando transmissão ao vivo de @${username}...` });
+                socket.emit('connect_tiktok', { username });
+            } else {
+                showToast('❌ Erro: O celular não achou o server.js do PC!');
+            }
+        }
+
+        /* =========================================================================
+           1. SINTETIZADOR DO SOM AUTÊNTICO DA URNA ("PILILILI!") + LOCUTOR IA
+           ========================================================================= */
+        let audioCtx = null;
+        let soundEnabled = true;
+        let voiceEnabled = true;
+
+        function initAudio() {
+            if (!audioCtx) {
+                const AudioContext = window.AudioContext || window.webkitAudioContext;
+                audioCtx = new AudioContext();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function toggleAudio() {
+            soundEnabled = !soundEnabled;
+            document.getElementById('soundToggleBtn').innerText = soundEnabled ? '🔊 Urna: ON' : '🔇 Urna: OFF';
+        }
+
+        function toggleVoice() {
+            voiceEnabled = !voiceEnabled;
+            document.getElementById('voiceToggleBtn').innerText = voiceEnabled ? '🗣️ Locutor: ON' : '🤐 Locutor: OFF';
+        }
+
+        function speakAnnouncement(text) {
+            if (!voiceEnabled || !('speechSynthesis' in window)) return;
+            try {
+                window.speechSynthesis.cancel();
+                const u = new SpeechSynthesisUtterance(text);
+                u.lang = 'pt-BR';
+                u.rate = 1.18;
+                u.pitch = 1.05;
+                window.speechSynthesis.speak(u);
+            } catch (e) {}
+        }
+
+        function playUrnaConfirmSound() {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const notes = [1244.5, 1480.0, 1244.5, 1480.0, 1244.5, 1480.0, 1244.5, 1480.0];
+                const step = 0.055;
+
+                notes.forEach((freq, idx) => {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * step);
+                    gain.gain.setValueAtTime(0.22, now + idx * step);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + (idx + 1) * step);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + idx * step);
+                    osc.stop(now + (idx + 1) * step);
+                });
+            } catch (e) {}
+        }
+
+        function playBeepKey() {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(960, now);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.045);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start(now);
+                osc.stop(now + 0.045);
+            } catch (e) {}
+        }
+
+        function playSirenSound() {
+            if (!soundEnabled) return;
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                for (let i = 0; i < 3; i++) {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(440, now + i * 0.22);
+                    osc.frequency.linearRampToValueAtTime(880, now + i * 0.22 + 0.19);
+                    gain.gain.setValueAtTime(0.24, now + i * 0.22);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + i * 0.22 + 0.2);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start(now + i * 0.22);
+                    osc.stop(now + i * 0.22 + 0.2);
+                }
+            } catch (e) {}
+        }
+
+        /* =========================================================================
+           2. DADOS DOS 3 CANDIDATOS CHIBI E PRESENTES EXCLUSIVOS DE CADA UM
+           ========================================================================= */
+        const CANDIDATES = [
+            {
+                id: 0,
+                number: '13',
+                name: 'LULA',
+                party: 'PT',
+                primary: '#ef4444',
+                secondary: '#991b1b',
+                suitColor: '#1f2937',
+                tieColor: '#dc2626',
+                x: 82,
+                gifts: {
+                    rose: '🌹 Rosa',
+                    steal: '🍺 Cerveja',
+                    whale: '🚀 Foguete'
+                }
+            },
+            {
+                id: 1,
+                number: '22',
+                name: 'BOLSONARO',
+                party: 'PL',
+                primary: '#22c55e',
+                secondary: '#facc15',
+                suitColor: '#1e3a8a',
+                tieColor: '#16a34a',
+                x: 207,
+                gifts: {
+                    rose: '☕ Café',
+                    steal: '🔫 Arma',
+                    whale: '🌌 Galáxia'
+                }
+            },
+            {
+                id: 2,
+                number: '14',
+                name: 'RENAN SANTOS',
+                party: 'MISSÃO',
+                primary: '#f59e0b',
+                secondary: '#111827',
+                suitColor: '#090a0f',
+                tieColor: '#fbbf24',
+                x: 332,
+                gifts: {
+                    rose: '⚡ Raio',
+                    steal: '🎩 Boné',
+                    whale: '🏆 Troféu'
+                }
+            }
+        ];
+
+        const FAKE_VOTERS = [
+            "Marcos_SP", "AnaJulia_BR", "TropaDo14", "Patriota_22", "Companheiro13",
+            "JovemMissao", "Lucas_Gamer", "Fernanda_RJ", "ReiDoPix", "Biel_Ofc",
+            "CachorroLouco", "Morena_Show", "Dr_Roberto", "Xande_GO", "VotoSecreto",
+            "Gabi_Oliveira", "Thiago_MBL", "TiaDoZap22", "Sindicato13", "RenanFãClube"
+        ];
+
+        const avatarImageCache = {};
+        function getCachedAvatarImage(url) {
+            if (!url) return null;
+            if (!avatarImageCache[url]) {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.src = url;
+                avatarImageCache[url] = img;
+            }
+            return avatarImageCache[url];
+        }
+
+        function createSimulatedUser(candIndex = 0) {
+            const raw = FAKE_VOTERS[Math.floor(Math.random() * FAKE_VOTERS.length)];
+            const avatarUrl = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(raw)}&backgroundColor=b6e3f4,c0aede,d1d4f9,ffd5dc,ffdfbf`;
+            getCachedAvatarImage(avatarUrl);
+            return {
+                username: '@' + raw,
+                initials: raw.substring(0, 2).toUpperCase(),
+                avatarUrl
+            };
+        }
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let state = {
+            votes: [100, 100, 100],
+            podiumHeights: [75, 75, 75],
+            mood: ['neutral', 'neutral', 'neutral'],
+            moodTimer: [0, 0, 0],
+            timeRemaining: 300,
+            totalCoins: 0,
+            likesCurrent: 0,
+            likesGoal: 1000,
+            furyMultiplier: 1,
+            furyTimer: 0,
+            screenShake: 0,
+            flashAlpha: 0,
+            flashColor: '#ffffff',
+            isEnded: false,
+            endCountdown: 10,
+            donors: [{}, {}, {}],
+            urnaScreen: {
+                candIndex: 2,
+                typedDigits: '14',
+                voterName: '@Aguardando...',
+                voterAvatarUrl: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Missao14',
+                confirmBlink: 0,
+                scaleBounce: 1
+            }
+        };
+
+        let flyingVotes = [];
+        let stolenBills = [];
+        let particles = [];
+        let floatingTexts = [];
+
+        let commentComboQueue = [0, 0, 0];
+        let lastCommentUser = [null, null, null];
+
+        /* =========================================================================
+           3. MECÂNICA DE VOTAÇÃO E "VIRA-VOTO" COM PRESENTES IDENTIFICADOS
+           ========================================================================= */
+        function pushToLiveVoterFeed(candIndex, user, actionLabel, borderColor) {
+            const feed = document.getElementById('liveVoterFeed');
+            if (!feed) return;
+            const cand = CANDIDATES[candIndex];
+            const avatarSrc = user.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(user.username)}`;
+
+            const item = document.createElement('div');
+            item.className = 'flex items-center gap-1.5 bg-black/85 border rounded-full px-2 py-1 shadow-lg transition-all duration-300';
+            item.style.borderColor = borderColor || cand.primary;
+            item.innerHTML = `
+                <img src="${avatarSrc}" class="w-6 h-6 rounded-full object-cover border border-white/60 shrink-0" onerror="this.src='https://placehold.co/40x40/111827/ffffff?text=${cand.number}'">
+                <div class="leading-none overflow-hidden">
+                    <div class="text-[9px] font-black text-white truncate">${user.username}</div>
+                    <div class="text-[8px] font-extrabold" style="color:${cand.primary}">${actionLabel} → ${cand.number}</div>
+                </div>
+            `;
+            feed.prepend(item);
+            while (feed.children.length > 4) {
+                feed.removeChild(feed.lastChild);
+            }
+        }
+
+        function triggerVoteEvent(candIndex, tier, customUser = null, customGiftName = null) {
+            if (state.isEnded) return;
+            const cand = CANDIDATES[candIndex];
+            const user = customUser || createSimulatedUser(candIndex);
+            if (user.avatarUrl) getCachedAvatarImage(user.avatarUrl);
+
+            if (tier === 'comment') {
+                commentComboQueue[candIndex]++;
+                lastCommentUser[candIndex] = user;
+                playBeepKey();
+                pushToLiveVoterFeed(candIndex, user, `💬 Digitou ${cand.number}`, cand.primary);
+                return;
+            }
+
+            const giftLabel = customGiftName || cand.gifts[tier] || '🎁 Presente';
+            const mult = state.furyMultiplier || 1;
+
+            if (tier === 'rose') {
+                addDonorScore(candIndex, user, 1);
+                const totalV = 25 * mult;
+                spawnFlyingBall(candIndex, user, totalV, '#ec4899', `${giftLabel} +${totalV}`);
+                pushToLiveVoterFeed(candIndex, user, `${giftLabel} (+${totalV})`, '#ec4899');
+                playUrnaConfirmSound();
+            } 
+            else if (tier === 'steal') {
+                addDonorScore(candIndex, user, 50);
+                const stealAmt = 150 * mult;
+                pushToLiveVoterFeed(candIndex, user, `${giftLabel} (ROUBOU ${stealAmt})`, '#a855f7');
+                executeVoteSteal(candIndex, user, stealAmt, stealAmt, false, giftLabel);
+            } 
+            else if (tier === 'whale') {
+                addDonorScore(candIndex, user, 500);
+                const bonusAmt = 3000 * mult;
+                pushToLiveVoterFeed(candIndex, user, `${giftLabel} (TAPETÃO)`, '#facc15');
+                executeVoteSteal(candIndex, user, 1500 * mult, bonusAmt, true, giftLabel);
+            }
+        }
+
+        function triggerLikeEvent(likeCount = 15, customUser = null) {
+            if (state.isEnded) return;
+            const user = customUser || createSimulatedUser(0);
+            state.likesCurrent += likeCount;
+
+            // Corações subindo na tela
+            spawnFloatingText(120 + Math.random() * 170, 560, `❤️ +${likeCount}`, '#f43f5e', 13);
+
+            if (state.likesCurrent >= state.likesGoal) {
+                state.likesCurrent = 0;
+                state.likesGoal += 500;
+                state.furyMultiplier = 2;
+                state.furyTimer = 20; // 20 segundos de Votos em Dobro!
+                state.screenShake = 16;
+                state.flashAlpha = 0.45;
+                state.flashColor = '#ec4899';
+
+                playSirenSound();
+                speakAnnouncement('Meta de curtidas batida! Modo Fúria ativado: todos os votos valem o dobro por vinte segundos!');
+                showUltimateBanner(user, '🔥 TODOS OS VOTOS VALEM 2X POR 20s!', '#ec4899', '❤️ META DE CURTIDAS BATIDA!');
+            }
+            updateLikesUI();
+        }
+
+        function triggerFollowEvent(candIndex, customUser = null) {
+            if (state.isEnded) return;
+            const cIdx = (candIndex !== undefined && candIndex !== null) ? candIndex : Math.floor(Math.random() * 3);
+            const cand = CANDIDATES[cIdx];
+            const user = customUser || createSimulatedUser(cIdx);
+            if (user.avatarUrl) getCachedAvatarImage(user.avatarUrl);
+
+            const bonusVotes = 5 * (state.furyMultiplier || 1);
+
+            // Atualiza mini card do último seguidor no topo
+            const avatarEl = document.getElementById('lastFollowerAvatar');
+            const nameEl = document.getElementById('lastFollowerName');
+            const badgeEl = document.getElementById('followerMiniBadge');
+            if (avatarEl) avatarEl.src = user.avatarUrl || `https://placehold.co/32x32/083344/22d3ee?text=${cand.number}`;
+            if (nameEl) nameEl.innerText = user.username;
+            if (badgeEl) {
+                badgeEl.classList.add('scale-105');
+                setTimeout(() => badgeEl.classList.remove('scale-105'), 400);
+            }
+
+            spawnFlyingBall(cIdx, user, bonusVotes, '#06b6d4', `➕ SEGUIU +${bonusVotes}`);
+            pushToLiveVoterFeed(cIdx, user, `➕ Seguiu (+${bonusVotes})`, '#06b6d4');
+            playBeepKey();
+        }
+
+        function updateLikesUI() {
+            const pct = Math.min(100, ((state.likesCurrent / state.likesGoal) * 100)).toFixed(1);
+            const bar = document.getElementById('likeProgressBar');
+            const counter = document.getElementById('likeCounterHud');
+            const label = document.getElementById('likeFuryLabel');
+            if (bar) bar.style.width = `${pct}%`;
+            if (counter) {
+                counter.innerText = state.furyTimer > 0
+                    ? `🔥 2X ATIVO (${state.furyTimer}s)`
+                    : `${state.likesCurrent} / ${state.likesGoal}`;
+            }
+            if (label) {
+                label.innerText = state.furyTimer > 0
+                    ? '🔥 FÚRIA 2X ATIVA! VOTEM AGORA!'
+                    : '❤️ META DE CURTIDAS (VOTOS 2X)';
+            }
+        }
+
+        setInterval(() => {
+            if (state.isEnded) return;
+            [0, 1, 2].forEach(cIdx => {
+                const count = commentComboQueue[cIdx];
+                if (count > 0) {
+                    const u = lastCommentUser[cIdx] || createSimulatedUser(cIdx);
+                    const totalComboVotes = count * (state.furyMultiplier || 1);
+                    const label = totalComboVotes > 1 ? `💬x${totalComboVotes}` : `💬${CANDIDATES[cIdx].number}`;
+                    spawnFlyingBall(cIdx, u, totalComboVotes, CANDIDATES[cIdx].primary, label);
+                    commentComboQueue[cIdx] = 0;
+                }
+            });
+        }, 280);
+
+        function spawnFlyingBall(candIndex, user, voteAmount, color, badgeText) {
+            const startX = candIndex === 0 ? 45 : (candIndex === 1 ? 207 : 369);
+            const startY = 635;
+            const avatarImg = getCachedAvatarImage(user.avatarUrl);
+
+            flyingVotes.push({
+                candIndex,
+                x: startX + (Math.random() * 36 - 18),
+                y: startY,
+                targetX: 207,
+                targetY: 295,
+                progress: 0,
+                speed: 0.048 + Math.random() * 0.015,
+                voteAmount,
+                color,
+                user: user.username,
+                avatarUrl: user.avatarUrl,
+                initials: user.initials || user.username.substring(1, 3).toUpperCase(),
+                avatarImg,
+                badgeText
+            });
+        }
+
+        function executeVoteSteal(winnerIdx, user, stealTotal, bonusVotes, isWhale, giftLabel) {
+            const cand = CANDIDATES[winnerIdx];
+            playSirenSound();
+            setTimeout(() => playUrnaConfirmSound(), 450);
+
+            let totalStolen = 0;
+            [0, 1, 2].forEach(otherIdx => {
+                if (otherIdx !== winnerIdx) {
+                    const halfSteal = Math.floor(stealTotal / 2);
+                    const actualStolen = Math.min(state.votes[otherIdx] - 10, halfSteal);
+                    if (actualStolen > 0) {
+                        state.votes[otherIdx] -= actualStolen;
+                        totalStolen += actualStolen;
+                        state.mood[otherIdx] = 'angry';
+                        state.moodTimer[otherIdx] = 180;
+
+                        spawnFloatingText(CANDIDATES[otherIdx].x, 455, `-${actualStolen} VOTOS!`, '#ef4444', 15);
+
+                        for (let b = 0; b < (isWhale ? 14 : 7); b++) {
+                            stolenBills.push({
+                                x: CANDIDATES[otherIdx].x,
+                                y: 505,
+                                targetX: cand.x,
+                                targetY: 485,
+                                progress: Math.random() * 0.2,
+                                speed: 0.03 + Math.random() * 0.02,
+                                color: cand.primary
+                            });
+                        }
+                    }
+                }
+            });
+
+            const totalGained = totalStolen + bonusVotes;
+            state.votes[winnerIdx] += totalGained;
+            state.mood[winnerIdx] = isWhale ? 'cool' : 'happy';
+            state.moodTimer[winnerIdx] = 220;
+
+            state.urnaScreen.candIndex = winnerIdx;
+            state.urnaScreen.typedDigits = cand.number;
+            state.urnaScreen.voterName = user.username;
+            state.urnaScreen.voterAvatarUrl = user.avatarUrl;
+            state.urnaScreen.confirmBlink = 35;
+            state.urnaScreen.scaleBounce = 1.18;
+
+            state.screenShake = isWhale ? 28 : 14;
+            state.flashAlpha = isWhale ? 0.6 : 0.35;
+            state.flashColor = cand.primary;
+
+            spawnParticles(cand.x, 475, cand.primary, isWhale ? 35 : 18);
+            spawnFloatingText(cand.x, 420, `${giftLabel} +${totalGained}!`, '#fde047', isWhale ? 19 : 16);
+
+            const titleMsg = isWhale ? `🦁 ${giftLabel}: TAPETÃO NO TSE!` : `🔄 ${giftLabel}: VIROU VOTOS!`;
+            const descMsg = `ROUBOU ${totalStolen} VOTOS PARA ${cand.number} ${cand.name}!`;
+            showUltimateBanner(user, descMsg, cand.primary, titleMsg);
+
+            speakAnnouncement(`${user.username.replace('@', '')} mandou ${giftLabel.replace(/[^\w\sÀ-ú]/gi, '')} e virou ${totalGained} votos para ${cand.name}!`);
+            updateScoresUI();
+        }
+
+        function addDonorScore(candIndex, user, coins) {
+            state.totalCoins += coins;
+            const brl = (state.totalCoins * 0.035).toFixed(2).replace('.', ',');
+            document.getElementById('totalCoinsCounter').innerText = `🪙 ${state.totalCoins} Moedas (~R$ ${brl})`;
+
+            const table = state.donors[candIndex];
+            if (!table[user.username]) {
+                table[user.username] = { coins: 0, initials: user.initials || 'VIP', avatarUrl: user.avatarUrl || null };
+            }
+            table[user.username].coins += coins;
+            if (user.avatarUrl) table[user.username].avatarUrl = user.avatarUrl;
+
+            let topUser = null;
+            let maxC = -1;
+            for (const [uname, data] of Object.entries(table)) {
+                if (data.coins > maxC) {
+                    maxC = data.coins;
+                    topUser = { username: uname, ...data };
+                }
+            }
+
+            if (topUser) {
+                document.getElementById('mvpName' + candIndex).innerText = topUser.username;
+                const colors = ['7f1d1d', '14532d', '78350f'];
+                document.getElementById('mvpAvatar' + candIndex).src =
+                    topUser.avatarUrl || `https://placehold.co/40x40/${colors[candIndex]}/fde047?text=${topUser.initials}`;
+            }
+        }
+
+        let bannerTimer = null;
+        function showUltimateBanner(user, moveName, borderColor, labelText) {
+            const banner = document.getElementById('ultimateBanner');
+            document.getElementById('ultTypeLabel').innerText = labelText;
+            document.getElementById('ultDonorName').innerText = user.username;
+            document.getElementById('ultMoveName').innerText = moveName;
+            document.getElementById('ultDonorAvatar').src =
+                user.avatarUrl || `https://placehold.co/80x80/eab308/000000?text=${user.initials || 'VIP'}`;
+            banner.style.borderColor = borderColor;
+
+            banner.classList.remove('hidden');
+            banner.classList.add('flex');
+
+            clearTimeout(bannerTimer);
+            bannerTimer = setTimeout(() => {
+                banner.classList.add('hidden');
+                banner.classList.remove('flex');
+            }, 2500);
+        }
+
+        function updateScoresUI() {
+            const total = state.votes[0] + state.votes[1] + state.votes[2] || 1;
+            const totalHud = document.getElementById('totalVotesHud');
+            if (totalHud) totalHud.innerText = total.toLocaleString('pt-BR');
+
+            [0, 1, 2].forEach(i => {
+                const pct = ((state.votes[i] / total) * 100).toFixed(1);
+                const barEl = document.getElementById('barCand' + i);
+                const scoreEl = document.getElementById('scoreText' + i);
+                if (barEl) barEl.style.width = `${pct}%`;
+                if (scoreEl) scoreEl.innerText = `${state.votes[i]} (${pct}%)`;
+            });
+
+            // Painel principal envia snapshot periódico do placar para manter o celular 100% igual
+            if (!isObsCleanMode && socket && socket.connected) {
+                socket.emit('state_snapshot', { votes: state.votes });
+            }
+        }
+
+        /* =========================================================================
+           4. DESENHO AVANÇADO NO CANVAS: URNA ELETRÔNICA + 3 CHIBIS CARICATOS
+           ========================================================================= */
+        let frameCount = 0;
+
+        function drawElectionArena() {
+            frameCount++;
+            ctx.save();
+
+            if (state.screenShake > 0) {
+                ctx.translate((Math.random() - 0.5) * state.screenShake, (Math.random() - 0.5) * state.screenShake);
+                state.screenShake *= 0.86;
+                if (state.screenShake < 0.5) state.screenShake = 0;
+            }
+
+            // Fundo de Plenário / Congresso Neon
+            const bgGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            bgGrad.addColorStop(0, '#0f172a');
+            bgGrad.addColorStop(0.55, '#1e1b4b');
+            bgGrad.addColorStop(1, '#090a0f');
+            ctx.fillStyle = bgGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Holofotes das cores dos 3 candidatos
+            ctx.save();
+            ctx.globalAlpha = 0.12 + Math.sin(frameCount * 0.04) * 0.04;
+            CANDIDATES.forEach(c => {
+                ctx.fillStyle = c.primary;
+                ctx.beginPath();
+                ctx.moveTo(c.x, 225);
+                ctx.lineTo(c.x - 75, 620);
+                ctx.lineTo(c.x + 75, 620);
+                ctx.closePath();
+                ctx.fill();
+            });
+            ctx.restore();
+
+            // URNA ELETRÔNICA BRASILEIRA BEM VISÍVEL NO CENTRO DA ARENA
+            drawBrazilianUrna(207, 295);
+
+            // PÓDIOS E OS 3 CHIBIS (Lula 13, Bolsonaro 22, Renan 14)
+            const totalVotes = state.votes[0] + state.votes[1] + state.votes[2] || 1;
+            const maxVotes = Math.max(...state.votes);
+            const leaderIndex = state.votes.indexOf(maxVotes);
+
+            CANDIDATES.forEach((cand, idx) => {
+                const share = state.votes[idx] / totalVotes;
+                const targetHeight = 48 + share * 110;
+                state.podiumHeights[idx] += (targetHeight - state.podiumHeights[idx]) * 0.1;
+
+                if (state.moodTimer[idx] > 0) {
+                    state.moodTimer[idx]--;
+                    if (state.moodTimer[idx] <= 0) state.mood[idx] = 'neutral';
+                }
+
+                const podiumBaseY = 602;
+                const podiumTopY = podiumBaseY - state.podiumHeights[idx];
+
+                // Coluna do Pódio
+                ctx.save();
+                const podGrad = ctx.createLinearGradient(cand.x - 48, podiumTopY, cand.x + 48, podiumBaseY);
+                podGrad.addColorStop(0, cand.primary);
+                podGrad.addColorStop(1, '#090a0f');
+                ctx.fillStyle = podGrad;
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.roundRect(cand.x - 46, podiumTopY, 92, state.podiumHeights[idx], [10, 10, 0, 0]);
+                ctx.fill();
+                ctx.stroke();
+
+                // Número grande do candidato (13, 22, 14)
+                ctx.font = '900 24px "Black Ops One", sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = '#000000';
+                ctx.shadowBlur = 6;
+                ctx.fillText(cand.number, cand.x, podiumTopY + 28);
+
+                // Porcentagem no pódio
+                const pctText = ((share * 100) || 0).toFixed(1) + '%';
+                ctx.font = '900 10px Inter, sans-serif';
+                ctx.fillStyle = '#fde047';
+                ctx.fillText(pctText, cand.x, podiumTopY + 42);
+
+                // Ícones dos presentes exclusivos na base do pódio
+                ctx.font = '700 9px Inter, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(`${cand.gifts.rose.split(' ')[0]} ${cand.gifts.steal.split(' ')[0]} ${cand.gifts.whale.split(' ')[0]}`, cand.x, podiumTopY + 56);
+                ctx.restore();
+
+                drawCandidateChibi(idx, cand.x, podiumTopY, idx === leaderIndex, state.mood[idx]);
+            });
+
+            // BOLINHAS DE VOTO (COM FOTO DO USUÁRIO) VOANDO PARA A URNA
+            for (let i = flyingVotes.length - 1; i >= 0; i--) {
+                const v = flyingVotes[i];
+                v.progress += v.speed;
+
+                const curX = v.x + (v.targetX - v.x) * v.progress;
+                const arcY = Math.sin(v.progress * Math.PI) * -45;
+                const curY = v.y + (v.targetY - v.y) * v.progress + arcY;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(curX, curY, 18, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.save();
+                ctx.clip();
+
+                if (v.avatarImg && v.avatarImg.complete && v.avatarImg.naturalWidth > 0) {
+                    ctx.drawImage(v.avatarImg, curX - 18, curY - 18, 36, 36);
+                } else {
+                    ctx.fillStyle = '#111827';
+                    ctx.fillRect(curX - 18, curY - 18, 36, 36);
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = '900 10px Inter';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(v.initials, curX, curY);
+                }
+                ctx.restore();
+
+                ctx.beginPath();
+                ctx.arc(curX, curY, 18, 0, Math.PI * 2);
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = v.color;
+                ctx.stroke();
+
+                ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                ctx.fillRect(curX - 28, curY + 19, 56, 11);
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '700 8px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText(v.user.substring(0, 10), curX, curY + 27);
+
+                if (v.badgeText) {
+                    ctx.fillStyle = '#fde047';
+                    ctx.font = '900 9px Inter';
+                    ctx.fillText(v.badgeText, curX, curY - 22);
+                }
+                ctx.restore();
+
+                if (v.progress >= 1) {
+                    const cIdx = v.candIndex;
+                    state.votes[cIdx] += v.voteAmount;
+                    state.mood[cIdx] = 'happy';
+                    state.moodTimer[cIdx] = 60;
+
+                    state.urnaScreen.candIndex = cIdx;
+                    state.urnaScreen.typedDigits = CANDIDATES[cIdx].number;
+                    state.urnaScreen.voterName = v.user;
+                    if (v.avatarUrl) state.urnaScreen.voterAvatarUrl = v.avatarUrl;
+                    state.urnaScreen.confirmBlink = 14;
+                    state.urnaScreen.scaleBounce = 1.08;
+
+                    if (v.voteAmount >= 10 || frameCount % 3 === 0) {
+                        playUrnaConfirmSound();
+                    }
+
+                    spawnParticles(207, 295, v.color, 8);
+                    spawnFloatingText(CANDIDATES[cIdx].x, 595 - state.podiumHeights[cIdx] - 85, `+${v.voteAmount}`, v.color, 15);
+                    updateScoresUI();
+                    flyingVotes.splice(i, 1);
+                }
+            }
+
+            // CÉDULAS DE VOTO ROUBADAS VOANDO ENTRE CANDIDATOS
+            for (let i = stolenBills.length - 1; i >= 0; i--) {
+                const b = stolenBills[i];
+                b.progress += b.speed;
+                if (b.progress < 0) continue;
+
+                const bx = b.x + (b.targetX - b.x) * b.progress;
+                const by = b.y + (b.targetY - b.y) * b.progress - Math.sin(b.progress * Math.PI) * 90;
+
+                ctx.save();
+                ctx.translate(bx, by);
+                ctx.rotate(b.progress * 8);
+                ctx.fillStyle = '#fde047';
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 1.5;
+                ctx.fillRect(-10, -6, 20, 12);
+                ctx.strokeRect(-10, -6, 20, 12);
+                ctx.restore();
+
+                if (b.progress >= 1) {
+                    stolenBills.splice(i, 1);
+                }
+            }
+
+            // PARTÍCULAS E TEXTOS FLUTUANTES
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15;
+                p.alpha -= 0.03;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            for (let i = floatingTexts.length - 1; i >= 0; i--) {
+                const ft = floatingTexts[i];
+                ft.y += ft.vy;
+                ft.alpha -= 0.022;
+                if (ft.alpha <= 0) {
+                    floatingTexts.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = ft.alpha;
+                ctx.font = `900 ${ft.size}px "Black Ops One", sans-serif`;
+                ctx.fillStyle = ft.color;
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 3;
+                ctx.textAlign = 'center';
+                ctx.strokeText(ft.text, ft.x, ft.y);
+                ctx.fillText(ft.text, ft.x, ft.y);
+                ctx.restore();
+            }
+
+            if (state.flashAlpha > 0) {
+                ctx.fillStyle = state.flashColor;
+                ctx.globalAlpha = state.flashAlpha;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                state.flashAlpha -= 0.04;
+            }
+
+            ctx.restore();
+            requestAnimationFrame(drawElectionArena);
+        }
+
+        function drawBrazilianUrna(cx, cy) {
+            ctx.save();
+            state.urnaScreen.scaleBounce += (1 - state.urnaScreen.scaleBounce) * 0.2;
+            ctx.translate(cx, cy);
+            ctx.scale(state.urnaScreen.scaleBounce, state.urnaScreen.scaleBounce);
+
+            ctx.fillStyle = '#e5e7eb';
+            ctx.strokeStyle = '#374151';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.roundRect(-135, -48, 270, 96, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = '#d1d5db';
+            ctx.fillRect(-130, 35, 260, 10);
+
+            // TELA LCD DA URNA
+            ctx.fillStyle = '#f8fafc';
+            ctx.strokeStyle = '#475569';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.roundRect(-122, -38, 142, 76, 6);
+            ctx.fill();
+            ctx.stroke();
+
+            const activeCand = CANDIDATES[state.urnaScreen.candIndex];
+
+            ctx.fillStyle = '#0f172a';
+            ctx.font = '900 8px Inter';
+            ctx.textAlign = 'left';
+            ctx.fillText('SEU VOTO PARA PRESIDENTE', -116, -26);
+
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 1.5;
+            ctx.strokeRect(-115, -18, 22, 26);
+            ctx.strokeRect(-90, -18, 22, 26);
+
+            ctx.font = '900 17px "Black Ops One", sans-serif';
+            ctx.fillStyle = activeCand.primary;
+            ctx.textAlign = 'center';
+            ctx.fillText(activeCand.number[0], -104, 1);
+            ctx.fillText(activeCand.number[1], -79, 1);
+
+            ctx.textAlign = 'left';
+            ctx.font = '900 9px Inter';
+            ctx.fillStyle = '#111827';
+            ctx.fillText(activeCand.name, -115, 19);
+
+            ctx.font = '700 8px Inter';
+            ctx.fillStyle = '#4b5563';
+            ctx.fillText(state.urnaScreen.voterName.substring(0, 16), -115, 30);
+
+            const urnaVoterImg = getCachedAvatarImage(state.urnaScreen.voterAvatarUrl);
+            if (urnaVoterImg && urnaVoterImg.complete && urnaVoterImg.naturalWidth > 0) {
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(-2, -4, 16, 0, Math.PI * 2);
+                ctx.closePath();
+                ctx.clip();
+                ctx.drawImage(urnaVoterImg, -18, -20, 32, 32);
+                ctx.restore();
+
+                ctx.beginPath();
+                ctx.arc(-2, -4, 16, 0, Math.PI * 2);
+                ctx.lineWidth = 2.5;
+                ctx.strokeStyle = activeCand.primary;
+                ctx.stroke();
+            } else {
+                ctx.fillStyle = activeCand.primary;
+                ctx.beginPath();
+                ctx.roundRect(-18, -20, 32, 32, 4);
+                ctx.fill();
+            }
+
+            ctx.fillStyle = activeCand.primary;
+            ctx.fillRect(-18, 14, 32, 11);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '900 8px Inter';
+            ctx.textAlign = 'center';
+            ctx.fillText(activeCand.party, -2, 22);
+
+            // TECLADO PRETO DA URNA
+            ctx.fillStyle = '#1f2937';
+            ctx.beginPath();
+            ctx.roundRect(28, -38, 96, 78, 6);
+            ctx.fill();
+
+            ctx.fillStyle = '#f3f4f6';
+            for (let r = 0; r < 3; r++) {
+                for (let c = 0; c < 3; c++) {
+                    ctx.fillRect(36 + c * 28, -31 + r * 13, 20, 8);
+                }
+            }
+
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(34, 14, 24, 17);
+            ctx.fillStyle = '#f97316';
+            ctx.fillRect(62, 14, 24, 17);
+            if (state.urnaScreen.confirmBlink > 0) {
+                state.urnaScreen.confirmBlink--;
+                ctx.fillStyle = state.urnaScreen.confirmBlink % 2 === 0 ? '#4ade80' : '#16a34a';
+                ctx.shadowColor = '#4ade80';
+                ctx.shadowBlur = 15;
+            } else {
+                ctx.fillStyle = '#16a34a';
+            }
+            ctx.fillRect(90, 10, 28, 21);
+            ctx.shadowBlur = 0;
+
+            ctx.restore();
+        }
+
+        function drawCandidateChibi(idx, x, podiumTopY, isLeader, mood) {
+            const bounce = Math.abs(Math.sin(frameCount * 0.08 + idx)) * (mood === 'happy' || isLeader ? 6 : 2.5);
+            const y = podiumTopY - bounce;
+
+            ctx.save();
+
+            ctx.fillStyle = 'rgba(0,0,0,0.45)';
+            ctx.beginPath();
+            ctx.ellipse(x, podiumTopY - 2, 26, 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            const cand = CANDIDATES[idx];
+            ctx.fillStyle = cand.suitColor;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.roundRect(x - 21, y - 40, 42, 38, 12);
+            ctx.fill();
+            ctx.stroke();
+
+            if (idx === 0) {
+                ctx.fillStyle = '#ef4444';
+                ctx.beginPath();
+                ctx.moveTo(x, y - 38);
+                ctx.lineTo(x - 5, y - 14);
+                ctx.lineTo(x + 5, y - 14);
+                ctx.closePath();
+                ctx.fill();
+
+                ctx.fillStyle = '#ffffff';
+                ctx.font = '10px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('⭐', x + 11, y - 24);
+            } else if (idx === 1) {
+                ctx.strokeStyle = '#22c55e';
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.moveTo(x - 17, y - 38);
+                ctx.lineTo(x + 17, y - 8);
+                ctx.stroke();
+                ctx.strokeStyle = '#facc15';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+            } else if (idx === 2) {
+                ctx.strokeStyle = '#f59e0b';
+                ctx.lineWidth = 2.5;
+                ctx.strokeRect(x - 17, y - 36, 34, 30);
+                ctx.fillStyle = '#fbbf24';
+                ctx.font = '900 8px Inter';
+                ctx.textAlign = 'center';
+                ctx.fillText('MISSÃO', x, y - 17);
+            }
+
+            const headY = y - 63;
+            ctx.fillStyle = '#fbd38d';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(x, headY, 25, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            if (idx === 0) {
+                ctx.fillStyle = '#d1d5db';
+                ctx.beginPath();
+                ctx.arc(x, headY - 6, 26, Math.PI, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.fillStyle = '#e5e7eb';
+                ctx.beginPath();
+                ctx.arc(x, headY + 6, 23, 0.15 * Math.PI, 0.85 * Math.PI);
+                ctx.fill();
+                ctx.stroke();
+            } else if (idx === 1) {
+                ctx.fillStyle = '#4b5563';
+                ctx.beginPath();
+                ctx.arc(x, headY - 7, 25, Math.PI * 0.95, Math.PI * 2.05);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.moveTo(x - 14, headY - 20);
+                ctx.quadraticCurveTo(x, headY - 9, x + 19, headY - 17);
+                ctx.stroke();
+            } else if (idx === 2) {
+                ctx.fillStyle = '#27272a';
+                ctx.beginPath();
+                ctx.arc(x, headY - 7, 26, Math.PI, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                ctx.strokeStyle = '#27272a';
+                ctx.lineWidth = 4.5;
+                ctx.beginPath();
+                ctx.arc(x, headY + 2, 21, 0.15 * Math.PI, 0.85 * Math.PI);
+                ctx.stroke();
+            }
+
+            if (mood === 'cool' || (idx === 2 && isLeader)) {
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(x - 18, headY - 8, 15, 8);
+                ctx.fillRect(x + 3, headY - 8, 15, 8);
+                ctx.lineWidth = 1.8;
+                ctx.strokeStyle = '#fbbf24';
+                ctx.strokeRect(x - 18, headY - 8, 15, 8);
+                ctx.strokeRect(x + 3, headY - 8, 15, 8);
+            } else {
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(x - 8, headY - 4, 3.2, 0, Math.PI * 2);
+                ctx.arc(x + 8, headY - 4, 3.2, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.strokeStyle = '#000000';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                if (mood === 'angry') {
+                    ctx.moveTo(x - 14, headY - 12);
+                    ctx.lineTo(x - 4, headY - 8);
+                    ctx.moveTo(x + 14, headY - 12);
+                    ctx.lineTo(x + 4, headY - 8);
+                } else {
+                    ctx.moveTo(x - 13, headY - 10);
+                    ctx.lineTo(x - 4, headY - 10);
+                    ctx.moveTo(x + 4, headY - 10);
+                    ctx.lineTo(x + 13, headY - 10);
+                }
+                ctx.stroke();
+            }
+
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            if (mood === 'angry') {
+                ctx.arc(x, headY + 12, 5.5, Math.PI, Math.PI * 2);
+            } else {
+                ctx.arc(x, headY + 6, 6.5, 0, Math.PI);
+            }
+            ctx.stroke();
+
+            if (isLeader) {
+                ctx.font = '22px sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText('👑', x, headY - 30 - Math.sin(frameCount * 0.1) * 3);
+            }
+
+            ctx.restore();
+        }
+
+        /* =========================================================================
+           5. PARTÍCULAS, TEXTOS E SIMULADOR AUTOMÁTICO
+           ========================================================================= */
+        function spawnParticles(x, y, color, count = 12) {
+            for (let i = 0; i < count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 5 + 1.5;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 1.5,
+                    radius: Math.random() * 4 + 2,
+                    color,
+                    alpha: 1
+                });
+            }
+        }
+
+        function spawnFloatingText(x, y, text, color, size = 16) {
+            floatingTexts.push({ x, y, text, color, size, alpha: 1, vy: -1.6 });
+        }
+
+        let chaosInterval = null;
+        function toggleChaosBot() {
+            const btn = document.getElementById('chaosBotBtn');
+            const mobBtn = document.getElementById('mobileBotBtn');
+            if (chaosInterval) {
+                clearInterval(chaosInterval);
+                chaosInterval = null;
+                if (btn) {
+                    btn.innerText = '🔥 ATIVAR SIMULADOR';
+                    btn.className = 'shrink-0 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs px-4 py-2.5 rounded-xl shadow-lg uppercase tracking-wider transition';
+                }
+                if (mobBtn) mobBtn.innerText = '🔥 Simulador: OFF';
+            } else {
+                if (btn) {
+                    btn.innerText = '⏹️ PARAR SIMULADOR';
+                    btn.className = 'shrink-0 bg-red-600 hover:bg-red-500 text-white font-black text-xs px-4 py-2.5 rounded-xl shadow-lg uppercase tracking-wider transition animate-pulse';
+                }
+                if (mobBtn) mobBtn.innerText = '⏹️ Simulador: ON';
+
+                chaosInterval = setInterval(() => {
+                    const cand = Math.floor(Math.random() * 3);
+                    const simUser = createSimulatedUser(cand);
+                    const roll = Math.random();
+
+                    if (roll < 0.14) {
+                        broadcastAndRun('like', { count: Math.floor(Math.random() * 45) + 15, user: simUser });
+                        return;
+                    }
+                    if (roll >= 0.14 && roll < 0.22) {
+                        broadcastAndRun('follow', { cand, user: simUser });
+                        return;
+                    }
+
+                    let tier = 'comment';
+                    if (roll >= 0.68 && roll < 0.88) tier = 'rose';
+                    else if (roll >= 0.88 && roll < 0.97) tier = 'steal';
+                    else if (roll >= 0.97) tier = 'whale';
+
+                    const giftName = tier === 'comment'
+                        ? `💬 ${CANDIDATES[cand].number}`
+                        : CANDIDATES[cand].gifts[tier];
+
+                    broadcastAndRun('vote', { cand, tier, giftName, user: simUser });
+                }, 480);
+            }
+        }
+
+        function resetElection() {
+            state.votes = [100, 100, 100];
+            state.timeRemaining = 300;
+            state.isEnded = false;
+            flyingVotes = [];
+            stolenBills = [];
+            document.getElementById('votingOverlay').classList.add('hidden');
+            document.getElementById('votingOverlay').classList.remove('flex');
+            updateScoresUI();
+        }
+
+        function toggleObsMode() {
+            const panel = document.getElementById('controlPanel');
+            document.body.classList.toggle('obs-clean-mode');
+            panel.classList.toggle('hidden');
+            adjustObsViewportScale();
+        }
+
+        function openSetupModal() {
+            document.getElementById('setupModal').classList.remove('hidden');
+            document.getElementById('setupModal').classList.add('flex');
+        }
+
+        function closeSetupModal() {
+            document.getElementById('setupModal').classList.add('hidden');
+            document.getElementById('setupModal').classList.remove('flex');
+        }
+
+        function populateServerJsTemplate() {
+            const code = [
+                "const express = require('express');",
+                "const http = require('http');",
+                "const { Server } = require('socket.io');",
+                "const { WebcastPushConnection } = require('tiktok-live-connector');",
+                "",
+                "const app = express();",
+                "const server = http.createServer(app);",
+                "const io = new Server(server, { cors: { origin: '*' } });",
+                "",
+                "app.use(express.static(__dirname));",
+                "",
+                "let tiktokConnection = null;",
+                "let lastVoterSide = {}; // Guarda o candidato escolhido por cada espectador no chat",
+                "",
+                "let masterClock = { timeRemaining: 300, isEnded: false, endCountdown: 10, votes: null };",
+                "setInterval(() => {",
+                "    if (masterClock.isEnded) {",
+                "        masterClock.endCountdown--;",
+                "        if (masterClock.endCountdown <= 0) {",
+                "            masterClock.isEnded = false;",
+                "            masterClock.timeRemaining = 300;",
+                "            masterClock.endCountdown = 10;",
+                "            masterClock.votes = [100, 100, 100];",
+                "            io.emit('admin_command', { type: 'reset', payload: {} });",
+                "        }",
+                "    } else {",
+                "        masterClock.timeRemaining--;",
+                "        if (masterClock.timeRemaining <= 0) {",
+                "            masterClock.timeRemaining = 0;",
+                "            masterClock.isEnded = true;",
+                "            masterClock.endCountdown = 10;",
+                "        }",
+                "    }",
+                "    io.emit('clock_sync', masterClock);",
+                "}, 1000);",
+                "",
+                "// Reconhece pelo nome do presente no TikTok para qual candidato ele vai!",
+                "function detectCandidateByGiftName(giftName = '') {",
+                "    const g = giftName.toUpperCase();",
+                "    // Presentes do 13 LULA: Rosa, Coração, Cerveja, Churrasco, Foguete, Leão",
+                "    if (g.includes('ROSE') || g.includes('ROSA') || g.includes('BEER') || g.includes('CERVEJA') || g.includes('HEART') || g.includes('CORA') || g.includes('ROCKET') || g.includes('FOGUETE') || g.includes('LION') || g.includes('LEÃO')) return 0;",
+                "    // Presentes do 22 BOLSONARO: Café, Casquinha/Sorvete, Arma de Dinheiro, Óculos, Galáxia, Águia/Falcão",
+                "    if (g.includes('COFFEE') || g.includes('CAF') || g.includes('ICE CREAM') || g.includes('CASQUINHA') || g.includes('GUN') || g.includes('ARMA') || g.includes('MONEY') || g.includes('SUNGLASS') || g.includes('ÓCULOS') || g.includes('GALAXY') || g.includes('GALÁXIA') || g.includes('HAWK') || g.includes('FALCON')) return 1;",
+                "    // Presentes do 14 RENAN (MISSÃO): Raio, TikTok, Boné/Chapéu, Troféu, Carro, Universo",
+                "    if (g.includes('TIKTOK') || g.includes('LIGHTNING') || g.includes('RAIO') || g.includes('HAT') || g.includes('CAP') || g.includes('BONÉ') || g.includes('CHAPÉU') || g.includes('TROPHY') || g.includes('TROFÉU') || g.includes('UNIVERSE') || g.includes('UNIVERSO')) return 2;",
+                "    return null;",
+                "}",
+                "",
+                "function connectTikTok(username) {",
+                "    if (tiktokConnection) {",
+                "        try { tiktokConnection.disconnect(); } catch (e) {}",
+                "    }",
+                "    console.log('⏳ Tentando conectar na live de @' + username + '...');",
+                "    io.emit('admin_command', { type: 'tiktok_status', payload: { status: 'connecting', username, message: '⏳ Procurando live ativa de @' + username + '...' } });",
+                "",
+                "    tiktokConnection = new WebcastPushConnection(username, { processInitialData: false });",
+                "    tiktokConnection.connect().then(state => {",
+                "        console.log('✅ URNA CONECTADA NA LIVE DE @' + username + ' (Room ID: ' + state.roomId + ')');",
+                "        io.emit('admin_command', { type: 'tiktok_status', payload: { status: 'connected', username, message: '🟢 CONECTADO NA LIVE DE @' + username + ' (Sala: ' + state.roomId + ')' } });",
+                "    }).catch(err => {",
+                "        const errMsg = (err && err.message) ? err.message : String(err);",
+                "        console.error('❌ Erro ao conectar em @' + username + ':', errMsg);",
+                "        io.emit('admin_command', { type: 'tiktok_status', payload: { status: 'error', username, message: '❌ Falha ao conectar @' + username + ': Verifique se a conta já está AO VIVO no TikTok! (' + errMsg.substring(0, 60) + ')' } });",
+                "    });",
+                "",
+                "    // 1. Comentários do Chat (13 Lula, 22 Bolsonaro, 14 Renan Missão) + Trava o candidato do doador!",
+                "    tiktokConnection.on('chat', data => {",
+                "        const msg = (data.comment || '').toUpperCase();",
+                "        const user = {",
+                "            username: '@' + data.uniqueId,",
+                "            initials: data.uniqueId.substring(0, 2).toUpperCase(),",
+                "            avatarUrl: data.profilePictureUrl",
+                "        };",
+                "        let cand = null;",
+                "        if (msg.includes('13') || msg.includes('LULA') || msg.includes('PT')) cand = 0;",
+                "        else if (msg.includes('22') || msg.includes('BOLSO') || msg.includes('MITO') || msg.includes('PL')) cand = 1;",
+                "        else if (msg.includes('14') || msg.includes('RENAN') || msg.includes('MISSAO') || msg.includes('MISSÃO')) cand = 2;",
+                "",
+                "        if (cand !== null) {",
+                "            lastVoterSide[data.uniqueId] = cand;",
+                "            io.emit('live_event', { type: 'vote', cand, tier: 'comment', giftName: '💬 ' + (cand === 0 ? '13' : cand === 1 ? '22' : '14'), user });",
+                "        } else {",
+                "            io.emit('live_event', { type: 'chat_raw', username: '@' + data.uniqueId, comment: data.comment });",
+                "        }",
+                "    });",
+                "",
+                "    // 2. Presentes / Doações",
+                "    tiktokConnection.on('gift', data => {",
+                "        if (data.giftType === 1 && !data.repeatEnd) return;",
+                "        const repeatCount = data.repeatCount || 1;",
+                "        const coins = (data.diamondCount || 1) * repeatCount;",
+                "        let cand = detectCandidateByGiftName(data.giftName || '');",
+                "        if (cand === null) {",
+                "            if (lastVoterSide[data.uniqueId] !== undefined) {",
+                "                cand = lastVoterSide[data.uniqueId];",
+                "            } else {",
+                "                cand = data.uniqueId.length % 3;",
+                "            }",
+                "        }",
+                "        const tier = coins >= 300 ? 'whale' : (coins >= 30 ? 'steal' : 'rose');",
+                "        const user = {",
+                "            username: '@' + data.uniqueId,",
+                "            initials: data.uniqueId.substring(0, 2).toUpperCase(),",
+                "            avatarUrl: data.profilePictureUrl",
+                "        };",
+                "        io.emit('live_event', { type: 'vote', cand, tier, giftName: '🎁 ' + (data.giftName || 'Gift'), user });",
+                "    });",
+                "",
+                "    // 3. Curtidas na Live (Enche a Barra de Fúria Votos 2X!)",
+                "    tiktokConnection.on('like', data => {",
+                "        const count = data.likeCount || 15;",
+                "        const user = {",
+                "            username: '@' + data.uniqueId,",
+                "            initials: data.uniqueId.substring(0, 2).toUpperCase(),",
+                "            avatarUrl: data.profilePictureUrl",
+                "        };",
+                "        io.emit('live_event', { type: 'like', count, user });",
+                "    });",
+                "",
+                "    // 4. Novos Seguidores na Live (Ganha +5 Votos Bônus na Urna!)",
+                "    tiktokConnection.on('follow', data => {",
+                "        const cand = lastVoterSide[data.uniqueId] !== undefined ? lastVoterSide[data.uniqueId] : (data.uniqueId.length % 3);",
+                "        const user = {",
+                "            username: '@' + data.uniqueId,",
+                "            initials: data.uniqueId.substring(0, 2).toUpperCase(),",
+                "            avatarUrl: data.profilePictureUrl",
+                "        };",
+                "        io.emit('live_event', { type: 'follow', cand, user });",
+                "    });",
+                "}",
+                "",
+                "io.on('connection', socket => {",
+                "    socket.emit('clock_sync', masterClock);",
+                "    socket.on('connect_tiktok', ({ username }) => connectTikTok(username));",
+                "    socket.on('admin_command', cmd => {",
+                "        if (cmd.type === 'reset') {",
+                "            masterClock.timeRemaining = 300;",
+                "            masterClock.isEnded = false;",
+                "            masterClock.endCountdown = 10;",
+                "            masterClock.votes = [100, 100, 100];",
+                "        }",
+                "        io.emit('admin_command', cmd);",
+                "    });",
+                "    socket.on('state_snapshot', snap => {",
+                "        if (snap && Array.isArray(snap.votes)) {",
+                "            masterClock.votes = snap.votes;",
+                "            socket.broadcast.emit('state_snapshot', snap);",
+                "        }",
+                "    });",
+                "});",
+                "",
+                "server.listen(3000, '0.0.0.0', () => {",
+                "    console.log('✅ SERVIDOR DA SUPER URNA RODANDO EM TODA A REDE WI-FI!');",
+                "    console.log('🎮 Painel no PC: http://localhost:3000');",
+                "    console.log('📱 Tela Limpa Celular/Live: http://SEU_IP:3000/?mode=obs');",
+                "});"
+            ].join('\n');
+            const area = document.getElementById('serverJsCodeArea');
+            if (area) area.value = code;
+        }
+
+        function copyServerCode() {
+            const area = document.getElementById('serverJsCodeArea');
+            area.select();
+            document.execCommand('copy');
+            showToast('Código do server.js copiado!');
+        }
+
+        function downloadServerFile() {
+            const code = document.getElementById('serverJsCodeArea').value;
+            const blob = new Blob([code], { type: 'application/javascript' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'server.js';
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('Arquivo server.js baixado!');
+        }
+
+        function renderTimerUI(wasEnded = false) {
+            if (state.isEnded) {
+                document.getElementById('voteTimerText').innerText = `${state.endCountdown}s`;
+                if (!wasEnded) {
+                    const maxV = Math.max(...state.votes);
+                    const winIdx = state.votes.indexOf(maxV);
+                    const winCand = CANDIDATES[winIdx];
+                    document.getElementById('winnerAnnouncement').innerText = `${winCand.number} ${winCand.name} ELEITO!`;
+                    document.getElementById('votingOverlay').classList.remove('hidden');
+                    document.getElementById('votingOverlay').classList.add('flex');
+                    playUrnaConfirmSound();
+                    speakAnnouncement(`Urnas encerradas! ${winCand.name} venceu este turno!`);
+                }
+                return;
+            }
+            const mins = String(Math.floor(state.timeRemaining / 60)).padStart(2, '0');
+            const secs = String(state.timeRemaining % 60).padStart(2, '0');
+            document.getElementById('timerDisplay').innerText = `${mins}:${secs}`;
+        }
+
+        // Loop local de 1s: controla a Fúria 2X e só mexe no relógio se o server.js estiver desligado
+        setInterval(() => {
+            if (state.furyTimer > 0) {
+                state.furyTimer--;
+                if (state.furyTimer <= 0) {
+                    state.furyMultiplier = 1;
+                }
+                updateLikesUI();
+            }
+
+            // Se estiver conectado ao server.js, o tempo vem 100% sincronizado pelo evento 'clock_sync'!
+            if (socket && socket.connected) return;
+
+            const wasEnded = state.isEnded;
+            if (state.isEnded) {
+                state.endCountdown--;
+                if (state.endCountdown <= 0) resetElection();
+                renderTimerUI(wasEnded);
+                return;
+            }
+            state.timeRemaining--;
+            if (state.timeRemaining <= 0) {
+                state.timeRemaining = 0;
+                state.isEnded = true;
+                state.endCountdown = 10;
+            }
+            renderTimerUI(wasEnded);
+        }, 1000);
+
+        window.onload = function () {
+            setupObsUrlField();
+            populateServerJsTemplate();
+            initSocketConnection();
+            updateScoresUI();
+            drawElectionArena();
+
+            if (isObsCleanMode) {
+                document.body.classList.add('obs-clean-mode');
+                document.getElementById('controlPanel').classList.add('hidden');
+                adjustObsViewportScale();
+            } else {
+                toggleChaosBot();
+            }
+        };
+    </script>
+</body>
+</html>
